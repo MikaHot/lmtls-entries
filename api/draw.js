@@ -1,125 +1,172 @@
-// api/draw.js
-// Effectue le tirage au sort et retourne le gagnant
-
+// api/draw.js — LMTLS Draw Admin API v2
 import { createClient } from '@supabase/supabase-js';
+import * as OTPAuth from 'otpauth';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
+const DRAW_PASSWORD = process.env.DRAW_PASSWORD;
+const TOTP_SECRET   = process.env.TOTP_SECRET;
+const FREE_ENTRIES  = parseInt(process.env.FREE_SIGNUP_ENTRIES || '15');
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-TOTP-Code');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // Auth simple par mot de passe
-  const auth = req.headers['authorization'] || '';
-  const password = auth.replace('Bearer ', '');
-  if (password !== process.env.DRAW_PASSWORD) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const action = req.query.action;
+
+  if (action === 'totp-setup' && req.method === 'GET') return handleTOTPSetup(res);
+
+  const auth     = (req.headers['authorization'] || '').replace('Bearer ', '');
+  const totpCode = req.headers['x-totp-code'] || '';
+
+  if (auth !== DRAW_PASSWORD) return res.status(401).json({ error: 'Invalid password' });
+
+  if (TOTP_SECRET && TOTP_SECRET !== 'SETUP_PENDING') {
+    const totp  = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(TOTP_SECRET), digits: 6, period: 30 });
+    const delta = totp.validate({ token: totpCode, window: 1 });
+    if (delta === null) return res.status(401).json({ error: 'Invalid authenticator code', totp_required: true });
   }
 
-  if (req.method === 'GET' && req.query.action === 'stats') {
-    return handleStats(res);
+  try {
+    if (action === 'stats')           return await handleStats(res);
+    if (action === 'participants')    return await handleParticipants(req, res);
+    if (action === 'draw')            return await handleDraw(req, res);
+    if (action === 'history')         return await handleHistory(res);
+    if (action === 'delete-draw')     return await handleDeleteDraw(req, res);
+    if (action === 'new-giveaway')    return await handleNewGiveaway(req, res);
+    if (action === 'active-giveaway') return await handleActiveGiveaway(res);
+    return res.status(400).json({ error: 'Invalid action' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
-
-  if (req.method === 'POST' && req.query.action === 'draw') {
-    return handleDraw(req, res);
-  }
-
-  if (req.method === 'GET' && req.query.action === 'history') {
-    return handleHistory(res);
-  }
-
-  return res.status(400).json({ error: 'Invalid action' });
 }
 
-// Stats générales
+async function handleTOTPSetup(res) {
+  if (TOTP_SECRET && TOTP_SECRET !== 'SETUP_PENDING') return res.status(200).json({ already_configured: true });
+  const secret = new OTPAuth.Secret({ size: 20 });
+  const totp   = new OTPAuth.TOTP({ issuer: 'LMTLS Draw', label: 'LMTLS Admin', secret, digits: 6, period: 30 });
+  return res.status(200).json({ secret_base32: secret.base32, otpauth_url: totp.toString() });
+}
+
+async function getActiveGiveaway() {
+  const { data } = await supabase.from('giveaways').select('*').eq('status', 'active').limit(1).single();
+  return data;
+}
+
 async function handleStats(res) {
-  const { data: entries } = await supabase
-    .from('entries')
-    .select('email, first_name, last_name, total_entries, paid_entries, free_entries')
+  const giveaway = await getActiveGiveaway();
+  const { data: all } = await supabase.from('entries')
+    .select('email,first_name,last_name,phone,total_entries,free_entries,paid_entries,alltime_entries')
     .order('total_entries', { ascending: false });
-
-  if (!entries) return res.status(500).json({ error: 'Failed to fetch entries' });
-
-  const totalParticipants = entries.length;
-  const totalEntries = entries.reduce((sum, e) => sum + e.total_entries, 0);
-  const totalPaid = entries.reduce((sum, e) => sum + e.paid_entries, 0);
-
+  if (!all) return res.status(500).json({ error: 'DB error' });
   return res.status(200).json({
-    total_participants: totalParticipants,
-    total_entries: totalEntries,
-    total_paid_entries: totalPaid,
-    top_10: entries.slice(0, 10),
+    giveaway,
+    total_participants:    all.length,
+    total_entries:         all.reduce((s,e) => s+e.total_entries, 0),
+    total_paid_entries:    all.reduce((s,e) => s+e.paid_entries, 0),
+    total_free_entries:    all.reduce((s,e) => s+e.free_entries, 0),
+    free_only_participants:all.filter(e => e.paid_entries === 0).length,
+    top_10:                all.slice(0, 10),
   });
 }
 
-// Effectue le tirage
+async function handleParticipants(req, res) {
+  const page   = parseInt(req.query.page   || '1');
+  const limit  = parseInt(req.query.limit  || '50');
+  const search = req.query.search || '';
+  const filter = req.query.filter || 'all';
+
+  let query = supabase.from('entries')
+    .select('email,first_name,last_name,phone,total_entries,free_entries,paid_entries,alltime_entries,created_at', { count: 'exact' });
+
+  if (search) query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%`);
+  if (filter === 'free_only') query = query.eq('paid_entries', 0);
+  if (filter === 'paid')      query = query.gt('paid_entries', 0);
+
+  const from = (page-1)*limit;
+  const { data, count, error } = await query.order('total_entries',{ascending:false}).range(from, from+limit-1);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ participants: data, total: count, page, pages: Math.ceil(count/limit) });
+}
+
 async function handleDraw(req, res) {
-  const { giveaway_name } = req.body || {};
+  if (req.method !== 'POST') return res.status(405).end();
+  const giveaway = await getActiveGiveaway();
+  if (!giveaway) return res.status(400).json({ error: 'No active giveaway' });
 
-  // Récupère tous les participants avec entries > 0
-  const { data: entries } = await supabase
-    .from('entries')
-    .select('email, first_name, last_name, total_entries')
-    .gt('total_entries', 0);
+  const { data: entries } = await supabase.from('entries')
+    .select('email,first_name,last_name,phone,total_entries').gt('total_entries', 0);
+  if (!entries?.length) return res.status(400).json({ error: 'No eligible participants' });
 
-  if (!entries || entries.length === 0) {
-    return res.status(400).json({ error: 'No eligible participants' });
-  }
+  const total = entries.reduce((s,e) => s+e.total_entries, 0);
+  let rand = Math.floor(Math.random() * total);
+  let winner = entries[entries.length-1];
+  for (const p of entries) { rand -= p.total_entries; if (rand < 0) { winner = p; break; } }
 
-  // Construit le pool de tirage (1 ticket par entry)
-  // Pour éviter un array massif, on utilise une méthode pondérée
-  const totalEntries = entries.reduce((sum, e) => sum + e.total_entries, 0);
-  
-  // Tire un nombre aléatoire entre 0 et totalEntries
-  let random = Math.floor(Math.random() * totalEntries);
-  
-  let winner = null;
-  for (const participant of entries) {
-    random -= participant.total_entries;
-    if (random < 0) {
-      winner = participant;
-      break;
-    }
-  }
+  const winnerName = `${winner.first_name||''} ${winner.last_name||''}`.trim();
 
-  if (!winner) winner = entries[entries.length - 1];
-
-  // Enregistre le tirage dans les logs
   await supabase.from('entries_log').insert({
-    email: winner.email,
-    event_type: 'draw_win',
-    entries_awarded: 0,
-    note: `WINNER — ${giveaway_name || 'Giveaway'} — Draw from ${totalEntries} total entries across ${entries.length} participants`,
+    email: winner.email, event_type: 'draw_win', entries_awarded: 0, giveaway_id: giveaway.id,
+    note: `WINNER — ${giveaway.name} — ${winnerName} (${winner.email}) — ${winner.total_entries} entries / ${total} total / ${entries.length} participants`,
   });
 
+  await supabase.from('giveaway_participants').insert(
+    entries.map(e => ({ giveaway_id: giveaway.id, email: e.email, first_name: e.first_name, last_name: e.last_name, phone: e.phone, entries: e.total_entries, won: e.email === winner.email }))
+  );
+
+  await supabase.from('giveaways').update({ winner_email: winner.email, winner_name: winnerName, winner_phone: winner.phone, total_participants: entries.length, total_entries: total }).eq('id', giveaway.id);
+
   return res.status(200).json({
-    winner: {
-      email: winner.email,
-      first_name: winner.first_name,
-      last_name: winner.last_name,
-      entries: winner.total_entries,
-    },
-    draw_stats: {
-      total_participants: entries.length,
-      total_entries: totalEntries,
-      win_probability: ((winner.total_entries / totalEntries) * 100).toFixed(2),
-    },
+    winner: { name: winnerName, email: winner.email, phone: winner.phone || 'Not provided', entries: winner.total_entries },
+    draw_stats: { giveaway_name: giveaway.name, total_participants: entries.length, total_entries: total, win_probability: ((winner.total_entries/total)*100).toFixed(2) },
     drawn_at: new Date().toISOString(),
   });
 }
 
-// Historique des tirages
 async function handleHistory(res) {
-  const { data: logs } = await supabase
-    .from('entries_log')
-    .select('email, note, created_at')
-    .eq('event_type', 'draw_win')
-    .order('created_at', { ascending: false });
+  const { data: draws }    = await supabase.from('entries_log').select('id,email,note,created_at,giveaway_id').eq('event_type','draw_win').order('created_at',{ascending:false});
+  const { data: giveaways} = await supabase.from('giveaways').select('*').order('created_at',{ascending:false});
+  return res.status(200).json({ draws: draws||[], giveaways: giveaways||[] });
+}
 
-  return res.status(200).json({ history: logs || [] });
+async function handleDeleteDraw(req, res) {
+  if (req.method !== 'DELETE') return res.status(405).end();
+  const { draw_id } = req.body || {};
+  if (!draw_id) return res.status(400).json({ error: 'draw_id required' });
+  const { error } = await supabase.from('entries_log').delete().eq('id', draw_id).eq('event_type','draw_win');
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ deleted: true });
+}
+
+async function handleNewGiveaway(req, res) {
+  if (req.method !== 'POST') return res.status(405).end();
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'Giveaway name required' });
+
+  await supabase.from('giveaways').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('status','active');
+  const { data: ng } = await supabase.from('giveaways').insert({ name, status:'active' }).select().single();
+
+  const { data: all } = await supabase.from('entries').select('email,alltime_entries,total_entries');
+  if (all?.length) {
+    for (const e of all) {
+      await supabase.from('entries').update({
+        total_entries: FREE_ENTRIES, free_entries: FREE_ENTRIES, paid_entries: 0,
+        alltime_entries: (e.alltime_entries||0) + e.total_entries,
+        current_giveaway_id: ng.id,
+      }).eq('email', e.email);
+      await supabase.from('entries_log').insert({ email: e.email, event_type: 'signup', entries_awarded: FREE_ENTRIES, giveaway_id: ng.id, note: `Fresh free entries — ${name}` });
+    }
+  }
+  return res.status(200).json({ giveaway: ng, participants_reset: all?.length || 0, free_entries_granted: FREE_ENTRIES });
+}
+
+async function handleActiveGiveaway(res) {
+  const g = await getActiveGiveaway();
+  return res.status(200).json({ giveaway: g });
 }
