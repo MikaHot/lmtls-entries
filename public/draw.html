@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LMTLS — Draw Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #111;
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Login Screen ── */
+    #login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .login-box {
+      background: #1A1A1A;
+      border: 1px solid #2A2A2A;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+    .login-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .login-sub {
+      font-size: 12px;
+      color: #555;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+    .login-input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #2A2A2A;
+      color: #fff;
+      padding: 12px 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .login-input:focus { border-color: #555; }
+    .login-btn {
+      width: 100%;
+      background: #fff;
+      color: #111;
+      border: none;
+      padding: 13px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .login-btn:hover { background: #F5F3F0; }
+    .login-error {
+      color: #C0392B;
+      font-size: 12px;
+      margin-top: 12px;
+      display: none;
+    }
+
+    /* ── Main App ── */
+    #app { display: none; }
+
+    .header {
+      background: #1A1A1A;
+      border-bottom: 1px solid #2A2A2A;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 24px;
+      letter-spacing: 0.08em;
+    }
+    .header-sub {
+      font-size: 11px;
+      color: #444;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .logout-btn {
+      background: none;
+      border: 1px solid #2A2A2A;
+      color: #666;
+      padding: 6px 14px;
+      font-size: 11px;
+      font-family: 'DM Sans', sans-serif;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .logout-btn:hover { border-color: #555; color: #fff; }
+
+    .main { max-width: 1100px; margin: 0 auto; padding: 40px 32px; }
+
+    /* ── Stats Grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      margin-bottom: 40px;
+    }
+    .stat-card {
+      background: #1A1A1A;
+      padding: 28px 24px;
+    }
+    .stat-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 8px;
+    }
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 48px;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      color: #fff;
+    }
+    .stat-sub {
+      font-size: 11px;
+      color: #555;
+      margin-top: 4px;
+    }
+
+    /* ── Draw Section ── */
+    .draw-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    .draw-card {
+      background: #1A1A1A;
+      border: 1px solid #2A2A2A;
+      padding: 32px;
+    }
+    .card-title {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #222;
+    }
+    .draw-input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #2A2A2A;
+      color: #fff;
+      padding: 11px 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .draw-input:focus { border-color: #444; }
+    .draw-input::placeholder { color: #444; }
+
+    .draw-btn {
+      width: 100%;
+      background: #fff;
+      color: #111;
+      border: none;
+      padding: 14px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .draw-btn:hover { background: #F5F3F0; }
+    .draw-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .draw-btn.spinning { background: #222; color: #fff; }
+
+    /* Winner display */
+    .winner-box {
+      display: none;
+      background: #111;
+      border: 2px solid #fff;
+      padding: 24px;
+      text-align: center;
+      animation: fadeIn 0.4s ease;
+    }
+    .winner-box.visible { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .winner-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 12px;
+    }
+    .winner-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 42px;
+      letter-spacing: 0.06em;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .winner-email {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 16px;
+    }
+    .winner-stats {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .winner-stat {
+      text-align: center;
+    }
+    .winner-stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      letter-spacing: 0.04em;
+      display: block;
+    }
+    .winner-stat-label {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .winner-prob {
+      display: inline-block;
+      background: #1A1A1A;
+      border: 1px solid #333;
+      font-size: 11px;
+      color: #888;
+      padding: 4px 12px;
+      margin-top: 14px;
+      letter-spacing: 0.06em;
+    }
+
+    /* Top 10 table */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    thead tr { border-bottom: 1px solid #2A2A2A; }
+    th {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #444;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    tbody tr {
+      border-bottom: 1px solid #1E1E1E;
+      transition: background 0.15s;
+    }
+    tbody tr:hover { background: #1A1A1A; }
+    td { padding: 11px 12px; color: #ccc; }
+    td:first-child { color: #555; font-size: 11px; }
+    .td-entries {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 18px;
+      letter-spacing: 0.04em;
+      color: #fff !important;
+    }
+    .td-bar {
+      width: 120px;
+    }
+    .bar-bg {
+      background: #222;
+      height: 4px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      background: #fff;
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    /* Spinner animation */
+    .spinner {
+      display: inline-block;
+      animation: spin 0.4s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Rolling names animation */
+    .rolling-display {
+      background: #111;
+      border: 1px solid #2A2A2A;
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 16px;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .rolling-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 24px;
+      letter-spacing: 0.06em;
+      color: #888;
+      transition: opacity 0.1s;
+    }
+
+    @media (max-width: 700px) {
+      .stats-grid { grid-template-columns: 1fr; }
+      .draw-section { grid-template-columns: 1fr; }
+      .main { padding: 24px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1 class="login-title">LMTLS DRAW</h1>
+    <p class="login-sub">Admin Access Only</p>
+    <input type="password" class="login-input" id="password-input" placeholder="Enter password" onkeydown="if(event.key==='Enter') login()">
+    <button class="login-btn" onclick="login()">Enter</button>
+    <p class="login-error" id="login-error">Incorrect password</p>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div class="header">
+    <div>
+      <div class="header-title">LMTLS DRAW ADMIN</div>
+      <div class="header-sub">Giveaway Control Panel</div>
+    </div>
+    <button class="logout-btn" onclick="logout()">Sign Out</button>
+  </div>
+
+  <div class="main">
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Participants</div>
+        <div class="stat-num" id="stat-participants">—</div>
+        <div class="stat-sub">eligible accounts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Entries</div>
+        <div class="stat-num" id="stat-entries">—</div>
+        <div class="stat-sub">in the pool</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Paid Entries</div>
+        <div class="stat-num" id="stat-paid">—</div>
+        <div class="stat-sub">from purchases</div>
+      </div>
+    </div>
+
+    <div class="draw-section">
+
+      <!-- Draw control -->
+      <div class="draw-card">
+        <div class="card-title">Perform Draw</div>
+        <input type="text" class="draw-input" id="giveaway-name" placeholder="Giveaway name (ex: RAM 1500 TRX 2025)">
+        <div class="rolling-display" id="rolling-display">
+          <span class="rolling-name" id="rolling-name">Ready to draw</span>
+        </div>
+        <button class="draw-btn" id="draw-btn" onclick="performDraw()">🎲 DRAW WINNER</button>
+        <div class="winner-box" id="winner-box">
+          <p class="winner-label">🏆 Winner Selected</p>
+          <div class="winner-name" id="winner-name"></div>
+          <div class="winner-email" id="winner-email"></div>
+          <div class="winner-stats">
+            <div class="winner-stat">
+              <span class="winner-stat-num" id="winner-entries"></span>
+              <span class="winner-stat-label">Their Entries</span>
+            </div>
+            <div class="winner-stat">
+              <span class="winner-stat-num" id="winner-total"></span>
+              <span class="winner-stat-label">Total Pool</span>
+            </div>
+          </div>
+          <span class="winner-prob" id="winner-prob"></span>
+        </div>
+      </div>
+
+      <!-- Past draws -->
+      <div class="draw-card">
+        <div class="card-title">Past Draws</div>
+        <div id="history-list">
+          <p style="font-size:12px;color:#444;text-align:center;padding:24px;">No draws yet</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Top 10 leaderboard -->
+    <div class="draw-card">
+      <div class="card-title">Top Participants</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Entries</th>
+              <th>Share</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body">
+            <tr><td colspan="6" style="text-align:center;color:#444;padding:24px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  var API = 'https://lmtls-entries.vercel.app';
+  var token = '';
+  var statsData = null;
+
+  function login() {
+    var pw = document.getElementById('password-input').value;
+    if (!pw) return;
+    token = pw;
+    fetchStats().then(function(ok) {
+      if (ok) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        fetchHistory();
+      } else {
+        document.getElementById('login-error').style.display = 'block';
+        token = '';
+      }
+    });
+  }
+
+  function logout() {
+    token = '';
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('password-input').value = '';
+    document.getElementById('login-error').style.display = 'none';
+  }
+
+  function authFetch(url, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = 'Bearer ' + token;
+    options.headers['Content-Type'] = 'application/json';
+    return fetch(url, options);
+  }
+
+  function fetchStats() {
+    return authFetch(API + '/api/draw?action=stats')
+      .then(function(r) {
+        if (r.status === 401) return false;
+        return r.json().then(function(data) {
+          if (data.error) return false;
+          statsData = data;
+          document.getElementById('stat-participants').textContent = data.total_participants.toLocaleString();
+          document.getElementById('stat-entries').textContent = data.total_entries.toLocaleString();
+          document.getElementById('stat-paid').textContent = data.total_paid_entries.toLocaleString();
+          renderLeaderboard(data.top_10, data.total_entries);
+          return true;
+        });
+      })
+      .catch(function() { return false; });
+  }
+
+  function renderLeaderboard(top10, totalEntries) {
+    var body = document.getElementById('leaderboard-body');
+    if (!top10 || top10.length === 0) {
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#444;padding:24px;">No participants yet</td></tr>';
+      return;
+    }
+    body.innerHTML = top10.map(function(p, i) {
+      var pct = totalEntries > 0 ? ((p.total_entries / totalEntries) * 100).toFixed(1) : 0;
+      var name = (p.first_name || '') + ' ' + (p.last_name || '');
+      return '<tr>' +
+        '<td>' + (i+1) + '</td>' +
+        '<td>' + name.trim() + '</td>' +
+        '<td style="color:#555">' + p.email + '</td>' +
+        '<td class="td-entries">' + p.total_entries.toLocaleString() + '</td>' +
+        '<td>' + pct + '%</td>' +
+        '<td class="td-bar"><div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function fetchHistory() {
+    authFetch(API + '/api/draw?action=history')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var list = document.getElementById('history-list');
+        if (!data.history || data.history.length === 0) {
+          list.innerHTML = '<p style="font-size:12px;color:#444;text-align:center;padding:24px;">No draws yet</p>';
+          return;
+        }
+        list.innerHTML = data.history.map(function(h) {
+          var date = new Date(h.created_at).toLocaleDateString('en-CA', { year:'numeric', month:'short', day:'numeric' });
+          return '<div style="padding:12px 0;border-bottom:1px solid #1E1E1E">' +
+            '<div style="font-size:12px;color:#ccc;margin-bottom:3px">' + (h.note || '') + '</div>' +
+            '<div style="font-size:10px;color:#444;letter-spacing:0.08em">' + date + '</div>' +
+          '</div>';
+        }).join('');
+      });
+  }
+
+  function performDraw() {
+    var btn = document.getElementById('draw-btn');
+    var giveawayName = document.getElementById('giveaway-name').value || 'Giveaway';
+    var rollingEl = document.getElementById('rolling-name');
+    var winnerBox = document.getElementById('winner-box');
+
+    btn.disabled = true;
+    winnerBox.classList.remove('visible');
+
+    // Animate rolling names
+    var names = (statsData && statsData.top_10) ? statsData.top_10.map(function(p) { return p.first_name || p.email.split('@')[0]; }) : ['Loading...'];
+    var rollCount = 0;
+    var maxRolls = 30;
+    var rollInterval = setInterval(function() {
+      var name = names[Math.floor(Math.random() * names.length)];
+      rollingEl.textContent = name;
+      rollingEl.style.opacity = rollCount % 2 === 0 ? '0.5' : '1';
+      rollCount++;
+      if (rollCount >= maxRolls) {
+        clearInterval(rollInterval);
+        // Do the actual draw
+        authFetch(API + '/api/draw?action=draw', {
+          method: 'POST',
+          body: JSON.stringify({ giveaway_name: giveawayName })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.error) {
+            alert('Error: ' + data.error);
+            btn.disabled = false;
+            return;
+          }
+          var w = data.winner;
+          rollingEl.textContent = (w.first_name || '') + ' ' + (w.last_name || '');
+          rollingEl.style.opacity = '1';
+
+          document.getElementById('winner-name').textContent = (w.first_name || '') + ' ' + (w.last_name || '');
+          document.getElementById('winner-email').textContent = w.email;
+          document.getElementById('winner-entries').textContent = w.entries.toLocaleString();
+          document.getElementById('winner-total').textContent = data.draw_stats.total_entries.toLocaleString();
+          document.getElementById('winner-prob').textContent = 'Win probability was ' + data.draw_stats.win_probability + '%';
+
+          winnerBox.classList.add('visible');
+          btn.disabled = false;
+          fetchHistory();
+          fetchStats();
+        })
+        .catch(function() {
+          alert('Draw failed. Please try again.');
+          btn.disabled = false;
+        });
+      }
+    }, 80);
+  }
+</script>
+
+</body>
+</html>
