@@ -45,6 +45,8 @@ export default async function handler(req, res) {
       await handleNewCustomer(data);
     } else if (topic === 'orders/paid') {
       await handleOrderPaid(data);
+    } else if (topic === 'orders/cancelled') {
+      await handleOrderCancelled(data);
     }
     return res.status(200).json({ ok: true });
   } catch (err) {
@@ -160,6 +162,65 @@ async function handleOrderPaid(order) {
   });
 
   console.log(`Order ${order_id} (${email}) → +${entries_awarded} entries ($${order_amount})`);
+}
+
+// Commande annulée → remove paid entries basés sur le montant
+async function handleOrderCancelled(order) {
+  const email    = order.email?.toLowerCase();
+  const order_id = String(order.id);
+
+  if (!email) return;
+
+  // Vérifie si cette commande a des entries enregistrées
+  const { data: log } = await supabase
+    .from('entries_log')
+    .select('entries_awarded')
+    .eq('order_id', order_id)
+    .eq('event_type', 'purchase')
+    .single();
+
+  if (!log) {
+    console.log('No entries found for cancelled order:', order_id);
+    return;
+  }
+
+  const to_remove = log.entries_awarded;
+
+  // Récupère le client
+  const { data: customer } = await supabase
+    .from('entries')
+    .select('total_entries, paid_entries')
+    .eq('email', email)
+    .single();
+
+  if (!customer) return;
+
+  // Retire les entries
+  await supabase
+    .from('entries')
+    .update({
+      total_entries: Math.max(0, customer.total_entries - to_remove),
+      paid_entries:  Math.max(0, customer.paid_entries  - to_remove),
+    })
+    .eq('email', email);
+
+  // Log l'annulation
+  await supabase.from('entries_log').insert({
+    email,
+    event_type:      'cancellation',
+    entries_awarded: -to_remove,
+    order_id,
+    note: `Order #${order.order_number} cancelled — -${to_remove} entries removed`,
+  });
+
+  // Supprime le log original pour éviter double-traitement
+  await supabase
+    .from('entries_log')
+    .delete()
+    .eq('order_id', order_id)
+    .eq('event_type', 'purchase');
+
+  console.log(`Order ${order_id} cancelled (${email}) → -${to_remove} entries`);
 }
 
 // Helper pour lire le body en raw (nécessaire pour vérifier la signature Shopify)
