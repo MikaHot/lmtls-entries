@@ -164,12 +164,19 @@ async function handleDeleteGiveaway(req, res) {
   const { giveaway_id } = req.body || {};
   if (!giveaway_id) return res.status(400).json({ error: 'giveaway_id required' });
 
-  // Delete draw log entry for this giveaway
-  await supabase.from('entries_log').delete().eq('giveaway_id', giveaway_id).eq('event_type', 'draw_win');
-  // Delete participant snapshot
-  await supabase.from('giveaway_participants').delete().eq('giveaway_id', giveaway_id);
-  // Delete the giveaway itself
-  const { error } = await supabase.from('giveaways').delete().eq('id', giveaway_id);
+  // Nullify foreign key references first
+  await supabase.from('entries')
+    .update({ current_giveaway_id: null })
+    .eq('current_giveaway_id', giveaway_id);
+
+  await supabase.from('entries_log').delete()
+    .eq('giveaway_id', giveaway_id).eq('event_type', 'draw_win');
+
+  await supabase.from('giveaway_participants').delete()
+    .eq('giveaway_id', giveaway_id);
+
+  const { error } = await supabase.from('giveaways').delete()
+    .eq('id', giveaway_id);
 
   if (error) return res.status(500).json({ error: error.message });
   return res.status(200).json({ deleted: true });
