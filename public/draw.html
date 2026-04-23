@@ -389,22 +389,26 @@ var searchTimer = null;
 function login() {
   token = document.getElementById('pw').value;
   totp  = document.getElementById('totp').value;
+  if (!token) { showLoginError('Enter your password'); return; }
+
   authFetch('/api/draw?action=stats').then(function(r) {
     if (r.status === 401) {
       r.json().then(function(d) {
         if (d.totp_required) {
+          // Show TOTP field and ask again
           document.getElementById('totp-label').style.display = 'block';
           document.getElementById('totp').style.display = 'block';
           document.getElementById('totp').focus();
-          document.getElementById('login-error').textContent = 'Enter your 6-digit authenticator code';
+          showLoginError('Enter your 6-digit Microsoft Authenticator code');
         } else {
-          document.getElementById('login-error').textContent = d.error || 'Invalid credentials';
+          token = '';
+          totp = '';
+          showLoginError(d.error || 'Invalid credentials');
         }
-        document.getElementById('login-error').style.display = 'block';
-        token = '';
       });
       return;
     }
+    if (!r.ok) { showLoginError('Server error'); return; }
     return r.json().then(function(data) {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').style.display = 'block';
@@ -412,7 +416,13 @@ function login() {
       loadHistory();
       loadActiveGiveaway();
     });
-  });
+  }).catch(function(){ showLoginError('Connection error'); });
+}
+
+function showLoginError(msg) {
+  var el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
 }
 
 function logout() {
@@ -613,7 +623,7 @@ function loadHistory() {
           '<div class="draw-stat"><span class="draw-stat-num">' + (g.total_entries||0).toLocaleString() + '</span><span class="draw-stat-label">Total Entries</span></div>' +
           (g.total_entries && g.winner_email ? '<div class="draw-stat"><span class="draw-stat-num">' + (draws.find(function(d){return d.giveaway_id===g.id;}) ? '—' : '—') + '</span><span class="draw-stat-label">Win Probability</span></div>' : '') +
           '</div>' : '';
-        var deleteBtn = draw ? '<button class="delete-draw-btn" onclick="openDeleteModal(\'' + draw.id + '\',event)">🗑 Delete this draw record</button>' : '';
+        var deleteBtn = '<button class="delete-draw-btn" onclick="openDeleteModal(\'' + g.id + '\',event)">🗑 Delete this giveaway record</button>';
 
         return '<div class="draw-item" id="giveaway-' + g.id + '">' +
           '<div class="draw-item-header" onclick="toggleDraw(\'' + g.id + '\')">' +
@@ -635,9 +645,9 @@ function toggleDraw(id) {
 }
 
 // ── DELETE DRAW ──
-function openDeleteModal(drawId, e) {
+function openDeleteModal(giveawayId, e) {
   e.stopPropagation();
-  deleteDrawId = drawId;
+  deleteDrawId = giveawayId;
   document.getElementById('delete-confirm-pw').value = '';
   document.getElementById('delete-modal').classList.add('open');
 }
@@ -646,14 +656,13 @@ function closeModal() { document.getElementById('delete-modal').classList.remove
 function confirmDelete() {
   var pw = document.getElementById('delete-confirm-pw').value;
   if (!pw) { showToast('Enter admin password', 'error'); return; }
-  // Verify password matches
   if (pw !== token) { showToast('Wrong password', 'error'); return; }
 
-  authFetch('/api/draw?action=delete-draw', { method:'DELETE', body: JSON.stringify({ draw_id: deleteDrawId }) })
+  authFetch('/api/draw?action=delete-giveaway', { method:'DELETE', body: JSON.stringify({ giveaway_id: deleteDrawId }) })
     .then(function(r){ return r.json(); })
     .then(function(data) {
       closeModal();
-      if (data.deleted) { showToast('Draw record deleted', 'success'); loadHistory(); }
+      if (data.deleted) { showToast('Giveaway deleted successfully', 'success'); loadHistory(); }
       else showToast('Delete failed: ' + (data.error||''), 'error');
     });
 }
