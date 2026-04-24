@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>LMTLS — Draw Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0D0D0D;--bg2:#161616;--bg3:#1E1E1E;--border:#252525;--muted:#555;--text:#E8E8E8;--sub:#777;--white:#fff;--red:#C0392B;--green:#27AE60;--yellow:#F39C12}
+    body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh}
+
+    /* LOGIN */
+    #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+    .login-box{background:var(--bg2);border:1px solid var(--border);padding:48px 40px;width:100%;max-width:400px}
+    .login-logo{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:.1em;margin-bottom:4px}
+    .login-sub{font-size:10px;color:var(--muted);letter-spacing:.2em;text-transform:uppercase;margin-bottom:36px}
+    .l-label{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;display:block}
+    .l-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:12px 14px;font-family:'DM Sans',sans-serif;font-size:14px;margin-bottom:14px;outline:none;transition:border-color .2s}
+    .l-input:focus{border-color:#444}
+    .l-btn{width:100%;background:var(--white);color:var(--bg);border:none;padding:13px;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.08em;cursor:pointer;margin-top:6px}
+    .l-btn:hover{opacity:.9}
+    .l-err{color:var(--red);font-size:12px;margin-top:10px;display:none;text-align:center;line-height:1.5}
+
+    /* APP */
+    #app{display:none}
+    .app-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+    .app-logo{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.1em}
+    .g-badge{display:inline-flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);padding:5px 12px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--sub)}
+    .g-badge span{color:var(--text);font-weight:600}
+    .hdr-actions{display:flex;gap:8px}
+    .hdr-btn{background:none;border:1px solid var(--border);color:var(--sub);padding:6px 14px;font-size:11px;font-family:'DM Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s}
+    .hdr-btn:hover{border-color:#555;color:var(--text)}
+
+    .app-body{display:flex;min-height:calc(100vh - 53px)}
+
+    /* SIDEBAR */
+    .sidebar{width:200px;background:var(--bg2);border-right:1px solid var(--border);padding:16px 0;flex-shrink:0;position:sticky;top:53px;height:calc(100vh - 53px);overflow-y:auto}
+    .nav-sec{font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);padding:12px 16px 6px;margin-top:4px}
+    .nav-sec:first-child{margin-top:0}
+    .nav-btn{width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;padding:9px 16px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--sub);text-align:left;cursor:pointer;transition:background .15s,color .15s;border-left:2px solid transparent}
+    .nav-btn:hover{background:var(--bg3);color:var(--text)}
+    .nav-btn.active{background:var(--bg3);color:var(--text);border-left-color:var(--white)}
+    .nav-btn .ic{font-size:15px;width:20px;text-align:center}
+    .nav-mfa-warn{display:none;margin:8px 12px;background:#1a1000;border:1px solid #3a2800;padding:8px 10px;font-size:10px;color:var(--yellow);line-height:1.5}
+
+    /* MAIN */
+    .main-content{flex:1;padding:32px;overflow-y:auto}
+    .page{display:none}
+    .page.active{display:block}
+    .pg-title{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:.06em;margin-bottom:4px}
+    .pg-sub{font-size:12px;color:var(--sub);margin-bottom:28px}
+
+    /* STATS */
+    .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-bottom:24px}
+    .stat{background:var(--bg2);border:1px solid var(--border);padding:22px 18px}
+    .stat-lbl{font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+    .stat-num{font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:.04em;line-height:1;color:var(--white)}
+    .stat-sub{font-size:11px;color:var(--muted);margin-top:4px}
+
+    /* CARD */
+    .card{background:var(--bg2);border:1px solid var(--border);padding:22px;margin-bottom:18px}
+    .card-title{font-size:9px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+
+    /* TABLE */
+    .tbl-controls{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+    .s-input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;font-family:'DM Sans',sans-serif;font-size:12px;outline:none;flex:1;min-width:180px}
+    .s-input:focus{border-color:#444}
+    .s-select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;font-family:'DM Sans',sans-serif;font-size:12px;outline:none;cursor:pointer}
+    .tbl-wrap{overflow-x:auto;max-height:480px;overflow-y:auto}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    thead{position:sticky;top:0;background:var(--bg2);z-index:1}
+    th{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding:9px 10px;text-align:left;white-space:nowrap}
+    td{padding:9px 10px;color:#ccc;border-bottom:1px solid #141414;white-space:nowrap}
+    tr:hover td{background:var(--bg2)}
+    .td-big{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.04em;color:var(--white)}
+    .td-muted{color:var(--muted)}
+    .bar-bg{background:#1a1a1a;height:3px;width:80px;display:inline-block;vertical-align:middle}
+    .bar-fill{background:var(--white);height:100%}
+    .pag{display:flex;align-items:center;justify-content:space-between;margin-top:12px;font-size:12px;color:var(--sub)}
+    .pag-btns{display:flex;gap:6px}
+    .pag-btn{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 12px;font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer}
+    .pag-btn:disabled{opacity:.3;cursor:not-allowed}
+
+    /* DRAW */
+    .draw-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+    .d-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:11px 12px;font-family:'DM Sans',sans-serif;font-size:13px;margin-bottom:12px;outline:none}
+    .d-input:focus{border-color:#444}
+    .rolling{background:var(--bg);border:1px solid var(--border);padding:14px;text-align:center;min-height:54px;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+    .rolling-name{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:.06em;color:var(--muted)}
+    .draw-btn{width:100%;background:var(--white);color:var(--bg);border:none;padding:14px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.1em;cursor:pointer}
+    .draw-btn:disabled{opacity:.3;cursor:not-allowed}
+    .winner-box{display:none;background:var(--bg);border:2px solid var(--white);padding:22px;text-align:center;margin-top:14px;animation:fi .3s ease}
+    .winner-box.visible{display:block}
+    @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .w-crown{font-size:28px;margin-bottom:8px}
+    .w-name{font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:.06em;line-height:1;margin-bottom:6px}
+    .w-contact{font-size:12px;color:var(--sub);margin-bottom:14px;line-height:1.8}
+    .w-stats{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:10px}
+    .w-stat-num{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:.04em;display:block}
+    .w-stat-lbl{font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+    .w-prob{display:inline-block;background:var(--bg2);border:1px solid var(--border);font-size:10px;color:var(--sub);padding:4px 10px}
+
+    /* HISTORY */
+    .draws-list{display:flex;flex-direction:column;gap:10px}
+    .draw-item{background:var(--bg);border:1px solid var(--border)}
+    .draw-item-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;transition:background .15s}
+    .draw-item-hdr:hover{background:var(--bg2)}
+    .draw-item-left{display:flex;align-items:center;gap:12px}
+    .draw-icon{width:34px;height:34px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+    .draw-name{font-size:13px;font-weight:600;margin-bottom:3px}
+    .draw-meta{font-size:10px;color:var(--muted)}
+    .draw-chev{color:var(--muted);transition:transform .2s;font-size:11px}
+    .draw-item.open .draw-chev{transform:rotate(180deg)}
+    .draw-body{display:none;padding:0 18px 18px;border-top:1px solid var(--border)}
+    .draw-item.open .draw-body{display:block}
+    .w-detail{display:grid;grid-template-columns:1fr 1fr;gap:14px;background:var(--bg2);border:1px solid var(--border);padding:18px;margin-top:14px}
+    .d-field-lbl{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+    .d-field-val{font-size:13px}
+    .draw-stats-row{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+    .draw-stat{background:var(--bg2);border:1px solid var(--border);padding:10px 14px;text-align:center;flex:1;min-width:70px}
+    .draw-stat-num{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.04em;display:block}
+    .draw-stat-lbl{font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+    .del-btn{background:none;border:1px solid var(--red);color:var(--red);padding:7px 14px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:14px;transition:all .2s}
+    .del-btn:hover{background:var(--red);color:#fff}
+    .badge{display:inline-block;padding:2px 8px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+    .badge-green{background:#0d2a1a;color:var(--green);border:1px solid #1a4a2e}
+    .badge-gray{background:#1a1a1a;color:var(--muted);border:1px solid var(--border)}
+
+    /* REVENUE */
+    .rev-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin-bottom:20px}
+    .chart-wrap{background:var(--bg);border:1px solid var(--border);padding:16px;margin-bottom:18px}
+    .chart-bars{display:flex;align-items:flex-end;gap:4px;height:120px;margin-top:12px}
+    .chart-bar-wrap{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0}
+    .chart-bar{background:#333;width:100%;transition:height .4s ease;min-height:2px;cursor:default}
+    .chart-bar:hover{background:#fff}
+    .chart-bar-lbl{font-size:9px;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;text-align:center}
+    .period-btns{display:flex;gap:6px;margin-bottom:16px}
+    .period-btn{background:var(--bg);border:1px solid var(--border);color:var(--sub);padding:6px 14px;font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s}
+    .period-btn.active{background:var(--white);color:var(--bg);border-color:var(--white)}
+
+    /* EXPORT */
+    .export-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    .export-card{background:var(--bg);border:1px solid var(--border);padding:22px;text-align:center}
+    .export-icon{font-size:32px;margin-bottom:12px}
+    .export-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.06em;margin-bottom:6px}
+    .export-desc{font-size:12px;color:var(--sub);margin-bottom:18px;line-height:1.6}
+    .export-btn{display:inline-block;background:var(--white);color:var(--bg);border:none;padding:10px 20px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.08em;cursor:pointer;width:100%;text-decoration:none}
+    .export-btn:hover{opacity:.9}
+
+    /* SETTINGS / MFA */
+    .mfa-status{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--bg);border:1px solid var(--border);margin-bottom:16px}
+    .mfa-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .mfa-dot.on{background:var(--green)}
+    .mfa-dot.off{background:var(--red)}
+    .mfa-text{font-size:13px}
+    .mfa-text small{font-size:11px;color:var(--sub);display:block;margin-top:2px}
+    .qr-wrap{background:var(--bg);border:1px solid var(--border);padding:24px;text-align:center;margin-top:14px}
+    .qr-wrap img{width:180px;height:180px;margin-bottom:16px;display:block;margin-left:auto;margin-right:auto}
+    .secret-box{background:var(--bg3);border:1px solid var(--border);padding:10px 14px;font-family:monospace;font-size:13px;letter-spacing:.06em;word-break:break-all;margin:12px 0;text-align:left}
+    .steps{font-size:12px;color:var(--sub);line-height:2;text-align:left}
+    .steps strong{color:var(--text)}
+    .action-btn{padding:11px 22px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.08em;border:none;cursor:pointer;transition:opacity .2s}
+    .action-btn:hover{opacity:.85}
+    .btn-white{background:var(--white);color:var(--bg)}
+    .btn-red{background:var(--red);color:#fff}
+    .warn-box{background:#1a0e0e;border:1px solid #3a1a1a;padding:14px 16px;font-size:12px;color:#cc6666;line-height:1.6;margin-bottom:14px}
+
+    /* MODAL */
+    .modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
+    .modal-ov.open{display:flex}
+    .modal{background:var(--bg2);border:1px solid var(--border);padding:28px;width:100%;max-width:400px;animation:fi .2s}
+    .modal-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:.06em;margin-bottom:6px}
+    .modal-sub{font-size:12px;color:var(--sub);margin-bottom:16px;line-height:1.6}
+    .modal-btns{display:flex;gap:10px;margin-top:14px}
+    .mbtn{flex:1;padding:10px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.06em;border:none;cursor:pointer}
+    .mbtn-red{background:var(--red);color:#fff}
+    .mbtn-cancel{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+
+    /* TOAST */
+    .toast{position:fixed;bottom:20px;right:20px;background:var(--bg2);border:1px solid var(--border);padding:12px 18px;font-size:12px;z-index:300;transform:translateY(60px);opacity:0;transition:all .25s ease;max-width:300px}
+    .toast.show{transform:translateY(0);opacity:1}
+    .toast.success{border-color:var(--green)}
+    .toast.error{border-color:var(--red)}
+
+    @media(max-width:900px){.stats-grid,.rev-grid{grid-template-columns:1fr 1fr}.draw-grid{grid-template-columns:1fr}.export-grid{grid-template-columns:1fr}.sidebar{display:none}.main-content{padding:20px}}
+    @media(max-width:600px){.stats-grid,.rev-grid{grid-template-columns:1fr}.w-detail{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">LMTLS</div>
+    <div class="login-sub">Draw Admin Panel</div>
+    <label class="l-label">Password</label>
+    <input type="password" class="l-input" id="l-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')tryLogin()">
+    <div id="totp-section" style="display:none">
+      <label class="l-label">Authenticator Code</label>
+      <input type="text" class="l-input" id="l-totp" placeholder="000000" maxlength="6" style="letter-spacing:.3em;text-align:center" onkeydown="if(event.key==='Enter')tryLogin()">
+    </div>
+    <button class="l-btn" onclick="tryLogin()">ENTER ADMIN</button>
+    <div class="l-err" id="l-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="app-header">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div class="app-logo">LMTLS DRAW</div>
+      <div class="g-badge">Active: <span id="hdr-giveaway">—</span></div>
+    </div>
+    <div class="hdr-actions">
+      <button class="hdr-btn" onclick="refreshAll()">↻ Refresh</button>
+      <button class="hdr-btn" onclick="logout()">Sign Out</button>
+    </div>
+  </div>
+  <div class="app-body">
+    <nav class="sidebar">
+      <div class="nav-sec">Overview</div>
+      <button class="nav-btn active" onclick="goPage('dashboard',this)"><span class="ic">📊</span>Dashboard</button>
+      <button class="nav-btn" onclick="goPage('participants',this)"><span class="ic">👥</span>Participants</button>
+      <div class="nav-sec">Revenue</div>
+      <button class="nav-btn" onclick="goPage('revenue',this)"><span class="ic">💰</span>Revenue</button>
+      <button class="nav-btn" onclick="goPage('export',this)"><span class="ic">📤</span>Export CSV</button>
+      <div class="nav-sec">Draw</div>
+      <button class="nav-btn" onclick="goPage('draw',this)"><span class="ic">🎲</span>Perform Draw</button>
+      <button class="nav-btn" onclick="goPage('history',this)"><span class="ic">🏆</span>Past Draws</button>
+      <div class="nav-sec">Manage</div>
+      <button class="nav-btn" onclick="goPage('giveaway',this)"><span class="ic">⚙️</span>New Giveaway</button>
+      <button class="nav-btn" onclick="goPage('settings',this)"><span class="ic">🔐</span>Settings / MFA</button>
+      <div class="nav-mfa-warn" id="mfa-sidebar-warn">⚠️ MFA not configured</div>
+    </nav>
+    <div class="main-content">
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="pg-title">Dashboard</div>
+        <div class="pg-sub" id="dash-sub">Loading...</div>
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-lbl">Participants</div><div class="stat-num" id="s-part">—</div><div class="stat-sub">current draw</div></div>
+          <div class="stat"><div class="stat-lbl">Total Entries</div><div class="stat-num" id="s-ent">—</div><div class="stat-sub">in pool</div></div>
+          <div class="stat"><div class="stat-lbl">Paid Entries</div><div class="stat-num" id="s-paid">—</div><div class="stat-sub">from purchases</div></div>
+          <div class="stat"><div class="stat-lbl">Free Entries</div><div class="stat-num" id="s-free">—</div><div class="stat-sub">sign-up bonuses</div></div>
+          <div class="stat"><div class="stat-lbl">Free-Only Members</div><div class="stat-num" id="s-fonly">—</div><div class="stat-sub">no purchase yet</div></div>
+          <div class="stat"><div class="stat-lbl">Paid Entry %</div><div class="stat-num" id="s-ratio">—</div><div class="stat-sub">of total pool</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Top 10 Participants</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>Entries</th><th>Share</th><th></th></tr></thead>
+              <tbody id="top10-body"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PARTICIPANTS -->
+      <div class="page" id="page-participants">
+        <div class="pg-title">All Participants</div>
+        <div class="pg-sub">Search, filter, and view all entries</div>
+        <div class="card">
+          <div class="tbl-controls">
+            <input type="text" class="s-input" id="p-search" placeholder="Search name, email or phone..." oninput="debounceP()">
+            <select class="s-select" id="p-filter" onchange="loadP(1)">
+              <option value="all">All participants</option>
+              <option value="paid">Has purchases</option>
+              <option value="free_only">Free only</option>
+            </select>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>Current</th><th>Free</th><th>Paid</th><th>All-time</th><th>Since</th></tr></thead>
+              <tbody id="p-body"><tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="pag">
+            <span id="p-count">—</span>
+            <div class="pag-btns">
+              <button class="pag-btn" id="p-prev" onclick="loadP(curPage-1)" disabled>← Prev</button>
+              <span id="p-pg" style="padding:5px 10px;font-size:12px">1</span>
+              <button class="pag-btn" id="p-next" onclick="loadP(curPage+1)">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REVENUE -->
+      <div class="page" id="page-revenue">
+        <div class="pg-title">Revenue</div>
+        <div class="pg-sub">Sales data from all purchases</div>
+        <div class="period-btns">
+          <button class="period-btn active" onclick="loadRev(7,this)">7 Days</button>
+          <button class="period-btn" onclick="loadRev(30,this)">30 Days</button>
+          <button class="period-btn" onclick="loadRev(90,this)">90 Days</button>
+          <button class="period-btn" onclick="loadRev(365,this)">1 Year</button>
+        </div>
+        <div class="rev-grid">
+          <div class="stat"><div class="stat-lbl">Period Revenue</div><div class="stat-num" id="r-rev">—</div><div class="stat-sub" id="r-period-lbl">last 7 days</div></div>
+          <div class="stat"><div class="stat-lbl">Period Orders</div><div class="stat-num" id="r-orders">—</div><div class="stat-sub">transactions</div></div>
+          <div class="stat"><div class="stat-lbl">Avg Order</div><div class="stat-num" id="r-avg">—</div><div class="stat-sub">per transaction</div></div>
+          <div class="stat"><div class="stat-lbl">All-time Revenue</div><div class="stat-num" id="r-alltime">—</div><div class="stat-sub">since launch</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Daily Revenue</div>
+          <div class="chart-bars" id="chart-bars"><p style="color:var(--muted);font-size:12px;align-self:center">No data</p></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Revenue by Giveaway</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Giveaway</th><th>Revenue</th><th>Orders</th><th>Avg Order</th></tr></thead>
+              <tbody id="rev-by-g-body"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- EXPORT -->
+      <div class="page" id="page-export">
+        <div class="pg-title">Export CSV</div>
+        <div class="pg-sub">Download participant lists for email campaigns or records</div>
+        <div class="export-grid">
+          <div class="export-card">
+            <div class="export-icon">📋</div>
+            <div class="export-title">All Participants</div>
+            <div class="export-desc">Complete list of all registered participants with their current entries and contact info.</div>
+            <button class="export-btn" onclick="downloadCSV('all')">Download All</button>
+          </div>
+          <div class="export-card">
+            <div class="export-icon">💳</div>
+            <div class="export-title">Buyers Only</div>
+            <div class="export-desc">Participants who made at least one purchase. Best for re-engagement campaigns.</div>
+            <button class="export-btn" onclick="downloadCSV('buyers')">Download Buyers</button>
+          </div>
+          <div class="export-card">
+            <div class="export-icon">🎁</div>
+            <div class="export-title">Free-Only Members</div>
+            <div class="export-desc">Members who signed up but never purchased. Targeting opportunity for conversion.</div>
+            <button class="export-btn" onclick="downloadCSV('free_only')">Download Free-Only</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DRAW -->
+      <div class="page" id="page-draw">
+        <div class="pg-title">Perform Draw</div>
+        <div class="pg-sub">Select the winner for the active giveaway</div>
+        <div class="draw-grid">
+          <div class="card">
+            <div class="card-title">Draw</div>
+            <input type="text" class="d-input" id="draw-g-name" placeholder="Giveaway name" readonly style="color:var(--muted)">
+            <div class="rolling"><span class="rolling-name" id="rolling-name">Ready</span></div>
+            <button class="draw-btn" id="draw-btn" onclick="performDraw()">🎲 DRAW WINNER</button>
+            <div class="winner-box" id="winner-box">
+              <div class="w-crown">🏆</div>
+              <div class="w-name" id="w-name">—</div>
+              <div class="w-contact" id="w-contact">—</div>
+              <div class="w-stats">
+                <div><span class="w-stat-num" id="w-ent">—</span><span class="w-stat-lbl">Their Entries</span></div>
+                <div><span class="w-stat-num" id="w-total">—</span><span class="w-stat-lbl">Total Pool</span></div>
+                <div><span class="w-stat-num" id="w-part">—</span><span class="w-stat-lbl">Participants</span></div>
+              </div>
+              <span class="w-prob" id="w-prob">—</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Current Pool Stats</div>
+            <div id="draw-stats-content" style="color:var(--sub);font-size:13px">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORY -->
+      <div class="page" id="page-history">
+        <div class="pg-title">Past Draws</div>
+        <div class="pg-sub">Full history of all giveaways and winners</div>
+        <div id="history-content"><p style="color:var(--muted);font-size:13px;text-align:center;padding:48px">Loading...</p></div>
+      </div>
+
+      <!-- NEW GIVEAWAY -->
+      <div class="page" id="page-giveaway">
+        <div class="pg-title">New Giveaway</div>
+        <div class="pg-sub">Archive current giveaway and start fresh</div>
+        <div class="card">
+          <div class="card-title">Start New Giveaway</div>
+          <div class="warn-box">⚠️ This will <strong>archive the current giveaway</strong>, <strong>reset all entries to 0</strong>, and give every participant <strong>15 fresh free entries</strong>. Perform your draw first before starting a new giveaway.</div>
+          <input type="text" class="d-input" id="new-g-name" placeholder="New giveaway name (ex: RAM 1500 TRX — Draw #2)" style="max-width:500px">
+          <br><button class="action-btn btn-white" onclick="confirmNewGiveaway()" style="margin-top:12px">🚀 START NEW GIVEAWAY</button>
+        </div>
+      </div>
+
+      <!-- SETTINGS / MFA -->
+      <div class="page" id="page-settings">
+        <div class="pg-title">Settings</div>
+        <div class="pg-sub">Security and authentication configuration</div>
+        <div class="card">
+          <div class="card-title">Two-Factor Authentication (MFA)</div>
+          <div class="mfa-status" id="mfa-status-bar">
+            <div class="mfa-dot off" id="mfa-dot"></div>
+            <div class="mfa-text" id="mfa-text">Loading MFA status...<small id="mfa-sub"></small></div>
+          </div>
+          <div id="mfa-setup-area"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Delete modal -->
+<div class="modal-ov" id="del-modal">
+  <div class="modal">
+    <div class="modal-title">Delete Giveaway Record</div>
+    <div class="modal-sub">Enter your admin password to confirm. All draw data, participant snapshots and logs for this giveaway will be permanently deleted.</div>
+    <input type="password" class="l-input" id="del-pw" placeholder="Admin password">
+    <div class="modal-btns">
+      <button class="mbtn mbtn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="mbtn mbtn-red" onclick="confirmDelete()">DELETE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+var API      = 'https://lmtls-entries.vercel.app';
+var token    = '';
+var totpCode = '';
+var statsData= null;
+var curPage  = 1;
+var delGid   = null;
+var pTimer   = null;
+var curRevPeriod = 7;
+
+// ── AUTH ──
+function tryLogin() {
+  token    = document.getElementById('l-pw').value;
+  totpCode = document.getElementById('l-totp').value;
+  if (!token) { showErr('Enter your password'); return; }
+  af('/api/draw?action=stats').then(function(r) {
+    if (r.status === 401) {
+      r.json().then(function(d) {
+        if (d.totp_required) {
+          document.getElementById('totp-section').style.display = 'block';
+          document.getElementById('l-totp').focus();
+          showErr('Enter your 6-digit Microsoft Authenticator code');
+        } else { token=''; totpCode=''; showErr(d.error||'Invalid credentials'); }
+      });
+      return;
+    }
+    r.json().then(function(data) {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      applyStats(data);
+      loadHistory();
+    });
+  }).catch(function(){ showErr('Connection error'); });
+}
+
+function showErr(m) { var e=document.getElementById('l-err'); e.textContent=m; e.style.display='block'; }
+
+function logout() {
+  token=''; totpCode='';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('l-pw').value='';
+  document.getElementById('l-totp').value='';
+  document.getElementById('l-err').style.display='none';
+}
+
+function af(path, opts) {
+  opts = opts||{};
+  opts.headers = opts.headers||{};
+  opts.headers['Authorization'] = 'Bearer '+token;
+  opts.headers['X-TOTP-Code']   = totpCode;
+  opts.headers['Content-Type']  = 'application/json';
+  return fetch(API+path, opts);
+}
+
+function refreshAll() {
+  af('/api/draw?action=stats').then(r=>r.json()).then(applyStats);
+  if (document.getElementById('page-history').classList.contains('active')) loadHistory();
+  if (document.getElementById('page-participants').classList.contains('active')) loadP(curPage);
+  if (document.getElementById('page-revenue').classList.contains('active')) loadRev(curRevPeriod);
+  showToast('Refreshed','success');
+}
+
+// ── NAVIGATION ──
+function goPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  if(id==='participants') loadP(1);
+  if(id==='history') loadHistory();
+  if(id==='revenue') loadRev(curRevPeriod);
+  if(id==='settings') loadMFAStatus();
+}
+
+// ── STATS ──
+function applyStats(data) {
+  statsData = data;
+  var g = data.giveaway;
+  document.getElementById('hdr-giveaway').textContent = g ? g.name : 'None';
+  document.getElementById('dash-sub').textContent = g ? 'Active: '+g.name+' — Started '+new Date(g.created_at).toLocaleDateString('en-CA',{year:'numeric',month:'long',day:'numeric'}) : 'No active giveaway';
+  document.getElementById('s-part').textContent  = data.total_participants.toLocaleString();
+  document.getElementById('s-ent').textContent   = data.total_entries.toLocaleString();
+  document.getElementById('s-paid').textContent  = data.total_paid_entries.toLocaleString();
+  document.getElementById('s-free').textContent  = data.total_free_entries.toLocaleString();
+  document.getElementById('s-fonly').textContent = data.free_only_participants.toLocaleString();
+  var ratio = data.total_entries>0 ? Math.round((data.total_paid_entries/data.total_entries)*100) : 0;
+  document.getElementById('s-ratio').textContent = ratio+'%';
+  renderTop10(data.top_10, data.total_entries);
+  if(g) document.getElementById('draw-g-name').value = g.name;
+
+  // MFA warning in sidebar
+  if(!data.totp_configured) document.getElementById('mfa-sidebar-warn').style.display='block';
+
+  // Draw page stats
+  document.getElementById('draw-stats-content').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+    '<div><div style="font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;margin-bottom:4px">Participants</div><div style="font-family:\'Bebas Neue\',sans-serif;font-size:28px">'+data.total_participants.toLocaleString()+'</div></div>'+
+    '<div><div style="font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;margin-bottom:4px">Total Entries</div><div style="font-family:\'Bebas Neue\',sans-serif;font-size:28px">'+data.total_entries.toLocaleString()+'</div></div>'+
+    '<div><div style="font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;margin-bottom:4px">Free-Only Members</div><div style="font-family:\'Bebas Neue\',sans-serif;font-size:28px">'+data.free_only_participants.toLocaleString()+'</div></div>'+
+    '<div><div style="font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;margin-bottom:4px">Paid Entry %</div><div style="font-family:\'Bebas Neue\',sans-serif;font-size:28px">'+ratio+'%</div></div>'+
+    '</div>';
+}
+
+function renderTop10(top10, total) {
+  var body = document.getElementById('top10-body');
+  if(!top10||!top10.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No participants yet</td></tr>';return;}
+  body.innerHTML=top10.map(function(p,i){
+    var pct=total>0?((p.total_entries/total)*100).toFixed(1):0;
+    var name=((p.first_name||'')+(p.last_name?' '+p.last_name:'')).trim()||'—';
+    return '<tr><td class="td-muted">'+(i+1)+'</td><td>'+name+'</td><td class="td-muted">'+p.email+'</td><td class="td-muted">'+(p.phone||'—')+'</td><td class="td-big">'+p.total_entries.toLocaleString()+'</td><td>'+pct+'%</td><td><div class="bar-bg"><div class="bar-fill" style="width:'+pct+'%"></div></div></td></tr>';
+  }).join('');
+}
+
+// ── PARTICIPANTS ──
+function debounceP(){clearTimeout(pTimer);pTimer=setTimeout(function(){loadP(1);},400);}
+function loadP(page) {
+  curPage=page;
+  var search=document.getElementById('p-search').value;
+  var filter=document.getElementById('p-filter').value;
+  var url='/api/draw?action=participants&page='+page+'&limit=50';
+  if(search) url+='&search='+encodeURIComponent(search);
+  if(filter) url+='&filter='+filter;
+  document.getElementById('p-body').innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>';
+  af(url).then(r=>r.json()).then(function(data){
+    var body=document.getElementById('p-body');
+    if(!data.participants||!data.participants.length){body.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">No participants found</td></tr>';return;}
+    body.innerHTML=data.participants.map(function(p,i){
+      var name=((p.first_name||'')+(p.last_name?' '+p.last_name:'')).trim()||'—';
+      var since=new Date(p.created_at).toLocaleDateString('en-CA',{year:'numeric',month:'short',day:'numeric'});
+      return '<tr><td class="td-muted">'+((page-1)*50+i+1)+'</td><td>'+name+'</td><td class="td-muted">'+p.email+'</td><td class="td-muted">'+(p.phone||'—')+'</td><td class="td-big">'+p.total_entries.toLocaleString()+'</td><td class="td-muted">'+p.free_entries+'</td><td>'+p.paid_entries+'</td><td class="td-muted">'+(p.alltime_entries||0)+'</td><td class="td-muted">'+since+'</td></tr>';
+    }).join('');
+    document.getElementById('p-count').textContent=data.total.toLocaleString()+' participants';
+    document.getElementById('p-pg').textContent='Page '+page+' / '+data.pages;
+    document.getElementById('p-prev').disabled=page<=1;
+    document.getElementById('p-next').disabled=page>=data.pages;
+  });
+}
+
+// ── REVENUE ──
+function loadRev(days, btn) {
+  curRevPeriod=days;
+  if(btn){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+  document.getElementById('r-period-lbl').textContent='last '+days+' days';
+  af('/api/draw?action=revenue&period='+days).then(r=>r.json()).then(function(data){
+    document.getElementById('r-rev').textContent='$'+data.period_revenue.toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});
+    document.getElementById('r-orders').textContent=data.period_orders.toLocaleString();
+    document.getElementById('r-avg').textContent='$'+data.avg_order.toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});
+    document.getElementById('r-alltime').textContent='$'+data.alltime_revenue.toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});
+    renderChart(data.daily);
+    var tbody=document.getElementById('rev-by-g-body');
+    if(!data.by_giveaway||!data.by_giveaway.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';return;}
+    tbody.innerHTML=data.by_giveaway.map(function(g){
+      var avg=g.orders>0?(g.revenue/g.orders).toFixed(2):0;
+      return '<tr><td>'+g.name+'</td><td class="td-big">$'+g.revenue.toFixed(2)+'</td><td>'+g.orders+'</td><td>$'+avg+'</td></tr>';
+    }).join('');
+  });
+}
+
+function renderChart(daily) {
+  var wrap=document.getElementById('chart-bars');
+  if(!daily||!daily.length){wrap.innerHTML='<p style="color:var(--muted);font-size:12px;align-self:center;margin:auto">No data for this period</p>';return;}
+  var max=Math.max(...daily.map(d=>d.revenue),1);
+  wrap.innerHTML=daily.map(function(d){
+    var h=Math.max(Math.round((d.revenue/max)*110),2);
+    var lbl=d.date.slice(5); // MM-DD
+    return '<div class="chart-bar-wrap" title="'+d.date+': $'+d.revenue.toFixed(2)+' ('+d.orders+' orders)"><div class="chart-bar" style="height:'+h+'px;background:'+(d.revenue>0?'#555':'#222')+'"></div><div class="chart-bar-lbl">'+lbl+'</div></div>';
+  }).join('');
+}
+
+// ── EXPORT ──
+function downloadCSV(type) {
+  var url = API+'/api/draw?action=export-csv&type='+type;
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'lmtls-participants-'+type+'.csv';
+  // Fetch with auth then blob download
+  af('/api/draw?action=export-csv&type='+type).then(function(r){
+    if(!r.ok){showToast('Export failed','error');return;}
+    return r.blob().then(function(blob){
+      var u=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=u; a.download='lmtls-'+type+'-'+new Date().toISOString().slice(0,10)+'.csv';
+      a.click(); URL.revokeObjectURL(u);
+      showToast('Export downloaded','success');
+    });
+  });
+}
+
+// ── DRAW ──
+function performDraw() {
+  var btn=document.getElementById('draw-btn');
+  var rollEl=document.getElementById('rolling-name');
+  var wBox=document.getElementById('winner-box');
+  var names=(statsData&&statsData.top_10)?statsData.top_10.map(p=>p.first_name||p.email.split('@')[0]):['...'];
+  btn.disabled=true; wBox.classList.remove('visible');
+  var cnt=0,max=35;
+  var iv=setInterval(function(){
+    rollEl.textContent=names[Math.floor(Math.random()*names.length)];
+    rollEl.style.opacity=cnt%2===0?.4:1;
+    if(++cnt>=max){
+      clearInterval(iv);
+      af('/api/draw?action=draw',{method:'POST',body:JSON.stringify({giveaway_name:document.getElementById('draw-g-name').value})})
+        .then(r=>r.json()).then(function(data){
+          if(data.error){showToast(data.error,'error');btn.disabled=false;return;}
+          var w=data.winner,s=data.draw_stats;
+          rollEl.textContent=w.name||w.email; rollEl.style.opacity=1;
+          document.getElementById('w-name').textContent=w.name||'—';
+          document.getElementById('w-contact').innerHTML='📧 '+w.email+'<br>📞 '+(w.phone||'Not provided');
+          document.getElementById('w-ent').textContent=w.entries.toLocaleString();
+          document.getElementById('w-total').textContent=s.total_entries.toLocaleString();
+          document.getElementById('w-part').textContent=s.total_participants.toLocaleString();
+          document.getElementById('w-prob').textContent='Win probability: '+s.win_probability+'%';
+          wBox.classList.add('visible'); btn.disabled=false;
+          refreshAll(); showToast('Winner: '+(w.name||w.email),'success');
+        }).catch(function(){showToast('Draw failed','error');btn.disabled=false;});
+    }
+  },90);
+}
+
+// ── HISTORY ──
+function loadHistory() {
+  af('/api/draw?action=history').then(r=>r.json()).then(function(data){
+    var cont=document.getElementById('history-content');
+    var giveaways=data.giveaways||[];
+    var draws=data.draws||[];
+    if(!giveaways.length){cont.innerHTML='<p style="color:var(--muted);font-size:13px;text-align:center;padding:48px">No giveaways yet</p>';return;}
+    cont.innerHTML='<div class="draws-list">'+giveaways.map(function(g){
+      var draw=draws.find(d=>d.giveaway_id===g.id);
+      var status=g.status==='active'?'<span class="badge badge-green">Active</span>':'<span class="badge badge-gray">'+g.status+'</span>';
+      var date=new Date(g.created_at).toLocaleDateString('en-CA',{year:'numeric',month:'short',day:'numeric'});
+      var winnerSection='';
+      if(g.winner_name||g.winner_email){
+        winnerSection='<div class="w-detail">'+
+          '<div><div class="d-field-lbl">Winner Name</div><div class="d-field-val">'+(g.winner_name||'—')+'</div></div>'+
+          '<div><div class="d-field-lbl">Email</div><div class="d-field-val" style="color:var(--sub)">'+(g.winner_email||'—')+'</div></div>'+
+          '<div><div class="d-field-lbl">Phone</div><div class="d-field-val">'+(g.winner_phone||'Not provided')+'</div></div>'+
+          '<div><div class="d-field-lbl">Draw Date</div><div class="d-field-val">'+(draw?new Date(draw.created_at).toLocaleDateString('en-CA',{year:'numeric',month:'long',day:'numeric'}):'—')+'</div></div>'+
+          '</div>';
+      }
+      var statsRow=(g.total_participants||g.total_entries)?
+        '<div class="draw-stats-row">'+
+        '<div class="draw-stat"><span class="draw-stat-num">'+(g.total_participants||0).toLocaleString()+'</span><span class="draw-stat-lbl">Participants</span></div>'+
+        '<div class="draw-stat"><span class="draw-stat-num">'+(g.total_entries||0).toLocaleString()+'</span><span class="draw-stat-lbl">Total Entries</span></div>'+
+        '</div>':'';
+      var delBtn='<button class="del-btn" onclick="openDelModal(\''+g.id+'\',event)">🗑 Delete Record</button>';
+      return '<div class="draw-item" id="gi-'+g.id+'">'+
+        '<div class="draw-item-hdr" onclick="toggleG(\''+g.id+'\')">'+
+        '<div class="draw-item-left"><div class="draw-icon">'+(g.status==='active'?'🔴':'🏆')+'</div>'+
+        '<div><div class="draw-name">'+g.name+' '+status+'</div><div class="draw-meta">Started '+date+(g.winner_name?' · Winner: '+g.winner_name:g.status==='active'?' · Draw pending':' · No draw recorded')+'</div></div></div>'+
+        '<div><span class="draw-chev">▼</span></div></div>'+
+        '<div class="draw-body">'+winnerSection+statsRow+delBtn+'</div></div>';
+    }).join('')+'</div>';
+  });
+}
+
+function toggleG(id){var el=document.getElementById('gi-'+id);if(el)el.classList.toggle('open');}
+
+// ── DELETE ──
+function openDelModal(gid,e){e.stopPropagation();delGid=gid;document.getElementById('del-pw').value='';document.getElementById('del-modal').classList.add('open');}
+function closeModal(){document.getElementById('del-modal').classList.remove('open');delGid=null;}
+function confirmDelete(){
+  var pw=document.getElementById('del-pw').value;
+  if(!pw){showToast('Enter admin password','error');return;}
+  if(pw!==token){showToast('Wrong password','error');return;}
+  af('/api/draw?action=delete-giveaway',{method:'DELETE',body:JSON.stringify({giveaway_id:delGid})})
+    .then(r=>r.json()).then(function(data){
+      closeModal();
+      if(data.deleted){showToast('Deleted successfully','success');loadHistory();refreshAll();}
+      else showToast('Delete failed: '+(data.error||''),'error');
+    });
+}
+
+// ── NEW GIVEAWAY ──
+function confirmNewGiveaway(){
+  var name=document.getElementById('new-g-name').value.trim();
+  if(!name){showToast('Enter giveaway name','error');return;}
+  if(!confirm('Start new giveaway "'+name+'"?\nThis will archive the current one and reset all entries. This cannot be undone.')){return;}
+  af('/api/draw?action=new-giveaway',{method:'POST',body:JSON.stringify({name})})
+    .then(r=>r.json()).then(function(data){
+      if(data.error){showToast(data.error,'error');return;}
+      showToast('Started! '+data.participants_reset+' participants reset.','success');
+      document.getElementById('new-g-name').value='';
+      refreshAll();
+    });
+}
+
+// ── MFA SETTINGS ──
+function loadMFAStatus(){
+  af('/api/draw?action=stats').then(r=>r.json()).then(function(data){
+    var configured=data.totp_configured;
+    var dot=document.getElementById('mfa-dot');
+    var text=document.getElementById('mfa-text');
+    var sub=document.getElementById('mfa-sub');
+    var area=document.getElementById('mfa-setup-area');
+
+    dot.className='mfa-dot '+(configured?'on':'off');
+    text.childNodes[0].nodeValue=configured?'MFA Active — Microsoft Authenticator enabled':'MFA Not Configured — Password only';
+    sub.textContent=configured?'Your account is protected with 2-factor authentication.':'Anyone with your password can access this panel.';
+
+    if(!configured){
+      area.innerHTML='<button class="action-btn btn-white" onclick="setupMFA()" style="margin-top:12px">🔐 SETUP MICROSOFT AUTHENTICATOR</button><div id="mfa-qr-area"></div>';
+    } else {
+      area.innerHTML='<p style="font-size:12px;color:var(--sub);margin-top:12px;line-height:1.8">To disable MFA, remove the <code style="background:var(--bg3);padding:2px 6px">TOTP_SECRET</code> environment variable in Vercel and set it to <code style="background:var(--bg3);padding:2px 6px">DISABLED</code>, then redeploy.</p>';
+    }
+  });
+}
+
+function setupMFA(){
+  af('/api/draw?action=totp-qr').then(r=>r.json()).then(function(data){
+    if(data.already_configured){showToast('MFA already configured','success');return;}
+    var qrURL='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(data.otpauth_url)+'&size=180x180&bgcolor=0d0d0d&color=ffffff';
+    document.getElementById('mfa-qr-area').innerHTML=
+      '<div class="qr-wrap">'+
+      '<p style="font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px">Scan with Microsoft Authenticator</p>'+
+      '<img src="'+qrURL+'" alt="QR Code" width="180" height="180">'+
+      '<p style="font-size:11px;color:var(--muted);margin-bottom:8px">Or enter this secret manually:</p>'+
+      '<div class="secret-box">'+data.secret_base32+'</div>'+
+      '<div class="steps">'+
+      '<strong>Step 1</strong> — Open Microsoft Authenticator → Add account → Other<br>'+
+      '<strong>Step 2</strong> — Scan the QR code above<br>'+
+      '<strong>Step 3</strong> — Copy the secret key below and add it as <code style="background:var(--bg3);padding:2px 6px">TOTP_SECRET</code> in Vercel Environment Variables<br>'+
+      '<strong>Step 4</strong> — Redeploy on Vercel (Settings → Deployments → Redeploy)<br>'+
+      '<strong>Step 5</strong> — Sign out and sign back in with your password + 6-digit code'+
+      '</div>'+
+      '<button onclick="navigator.clipboard.writeText(\''+data.secret_base32+'\').then(()=>showToast(\'Copied!\',\'success\'))" class="action-btn btn-white" style="margin-top:16px;font-size:14px;padding:8px 18px">📋 COPY SECRET KEY</button>'+
+      '</div>';
+  });
+}
+
+// ── TOAST ──
+function showToast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast '+(type||'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+</script>
+</body>
+</html>
