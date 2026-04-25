@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>LMTLS — Draw Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{--bg:#0D0D0D;--bg2:#161616;--bg3:#1E1E1E;--border:#252525;--muted:#555;--text:#E8E8E8;--sub:#777;--white:#fff;--red:#C0392B;--green:#27AE60;--yellow:#F39C12}
@@ -354,7 +355,8 @@
             <div class="card-title">Draw</div>
             <input type="text" class="d-input" id="draw-g-name" placeholder="Giveaway name" readonly style="color:var(--muted)">
             <div class="rolling"><span class="rolling-name" id="rolling-name">Ready</span></div>
-            <button class="draw-btn" id="draw-btn" onclick="performDraw()">🎲 DRAW WINNER</button>
+            <button class="draw-btn" id="draw-btn" onclick="performDraw(false)">🎲 DRAW WINNER</button>
+            <button class="draw-btn" id="redraw-btn" onclick="performDraw(true)" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);margin-top:8px;font-size:16px;display:none">↻ REDRAW — Same Giveaway</button>
             <div class="winner-box" id="winner-box">
               <div class="w-crown">🏆</div>
               <div class="w-name" id="w-name">—</div>
@@ -516,7 +518,12 @@ function applyStats(data) {
   var ratio = data.total_entries>0 ? Math.round((data.total_paid_entries/data.total_entries)*100) : 0;
   document.getElementById('s-ratio').textContent = ratio+'%';
   renderTop10(data.top_10, data.total_entries);
-  if(g) document.getElementById('draw-g-name').value = g.name;
+  if(g) {
+    document.getElementById('draw-g-name').value = g.name;
+    if(g.winner_name) {
+      document.getElementById('redraw-btn').style.display='block';
+    }
+  }
 
   // MFA warning in sidebar
   if(!data.totp_configured) document.getElementById('mfa-sidebar-warn').style.display='block';
@@ -617,7 +624,7 @@ function downloadCSV(type) {
 }
 
 // ── DRAW ──
-function performDraw() {
+function performDraw(isRedraw) {
   var btn=document.getElementById('draw-btn');
   var rollEl=document.getElementById('rolling-name');
   var wBox=document.getElementById('winner-box');
@@ -641,6 +648,7 @@ function performDraw() {
           document.getElementById('w-part').textContent=s.total_participants.toLocaleString();
           document.getElementById('w-prob').textContent='Win probability: '+s.win_probability+'%';
           wBox.classList.add('visible'); btn.disabled=false;
+          document.getElementById('redraw-btn').style.display='block';
           refreshAll(); showToast('Winner: '+(w.name||w.email),'success');
         }).catch(function(){showToast('Draw failed','error');btn.disabled=false;});
     }
