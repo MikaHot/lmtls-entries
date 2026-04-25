@@ -522,6 +522,10 @@ function applyStats(data) {
     document.getElementById('draw-g-name').value = g.name;
     if(g.winner_name) {
       document.getElementById('redraw-btn').style.display='block';
+      document.getElementById('draw-btn').style.display='none';
+    } else {
+      document.getElementById('draw-btn').style.display='block';
+      document.getElementById('redraw-btn').style.display='none';
     }
   }
 
@@ -625,6 +629,15 @@ function downloadCSV(type) {
 
 // ── DRAW ──
 function performDraw(isRedraw) {
+  if (isRedraw) {
+    if (!confirm('⚠️ REDRAW CONFIRMATION
+
+You are about to draw a NEW winner for the same giveaway.
+
+The previous winner will be replaced. This action is logged.
+
+Are you absolutely sure?')) return;
+  }
   var btn=document.getElementById('draw-btn');
   var rollEl=document.getElementById('rolling-name');
   var wBox=document.getElementById('winner-box');
@@ -649,6 +662,7 @@ function performDraw(isRedraw) {
           document.getElementById('w-prob').textContent='Win probability: '+s.win_probability+'%';
           wBox.classList.add('visible'); btn.disabled=false;
           document.getElementById('redraw-btn').style.display='block';
+          document.getElementById('draw-btn').style.display='none';
           refreshAll(); showToast('Winner: '+(w.name||w.email),'success');
         }).catch(function(){showToast('Draw failed','error');btn.disabled=false;});
     }
