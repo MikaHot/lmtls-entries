@@ -630,13 +630,7 @@ function downloadCSV(type) {
 // ── DRAW ──
 function performDraw(isRedraw) {
   if (isRedraw) {
-    if (!confirm('⚠️ REDRAW CONFIRMATION
-
-You are about to draw a NEW winner for the same giveaway.
-
-The previous winner will be replaced. This action is logged.
-
-Are you absolutely sure?')) return;
+    if (!confirm('REDRAW CONFIRMATION -- You are about to draw a NEW winner for the same giveaway. The previous winner will be replaced. This cannot be undone. Are you sure?')) return;
   }
   var btn=document.getElementById('draw-btn');
   var rollEl=document.getElementById('rolling-name');
