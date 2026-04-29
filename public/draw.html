@@ -430,9 +430,10 @@
 <div class="toast" id="toast"></div>
 
 <script>
-var API      = 'https://lmtls-entries.vercel.app';
-var token    = '';
-var totpCode = '';
+var API          = 'https://lmtls-entries.vercel.app';
+var token        = '';
+var totpCode     = '';
+var sessionToken = '';
 var statsData= null;
 var curPage  = 1;
 var delGid   = null;
@@ -478,8 +479,9 @@ function logout() {
 function af(path, opts) {
   opts = opts||{};
   opts.headers = opts.headers||{};
-  opts.headers['Authorization'] = 'Bearer '+token;
-  opts.headers['X-TOTP-Code']   = totpCode;
+  opts.headers['Authorization']  = 'Bearer '+token;
+  opts.headers['X-TOTP-Code']    = totpCode;
+  opts.headers['X-Session-Token'] = sessionToken;
   opts.headers['Content-Type']  = 'application/json';
   return fetch(API+path, opts);
 }
