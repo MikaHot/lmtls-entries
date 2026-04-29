@@ -10,22 +10,29 @@ const FREE_ENTRIES  = parseInt(process.env.FREE_SIGNUP_ENTRIES || '15');
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-TOTP-Code');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-TOTP-Code, X-Session-Token');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const action = req.query.action;
-  const auth     = (req.headers['authorization'] || '').replace('Bearer ', '');
+  const auth         = (req.headers['authorization'] || '').replace('Bearer ', '');
+  const sessionTok   = req.headers['x-session-token'] || '';
   const totpCode = (req.headers['x-totp-code'] || '').trim();
 
   if (auth !== DRAW_PASSWORD) return res.status(401).json({ error: 'Invalid password' });
 
   if (TOTP_SECRET && TOTP_SECRET !== 'DISABLED') {
-    if (!totpCode) return res.status(401).json({ error: 'Authenticator code required', totp_required: true });
-    try {
-      const totp  = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(TOTP_SECRET), digits: 6, period: 30 });
-      const delta = totp.validate({ token: totpCode, window: 1 });
-      if (delta === null) return res.status(401).json({ error: 'Invalid authenticator code', totp_required: true });
-    } catch { return res.status(401).json({ error: 'TOTP error', totp_required: true }); }
+    const sessionToken = req.headers['x-session-token'] || '';
+    // Accept valid session token (avoids re-entering TOTP every call)
+    if (sessionToken && sessionToken === process.env.DRAW_PASSWORD + '_session_' + new Date().toISOString().slice(0,13)) {
+      // Valid session (expires at end of current hour)
+    } else {
+      if (!totpCode) return res.status(401).json({ error: 'Authenticator code required', totp_required: true });
+      try {
+        const totp  = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(TOTP_SECRET), digits: 6, period: 30 });
+        const delta = totp.validate({ token: totpCode, window: 10 });
+        if (delta === null) return res.status(401).json({ error: 'Invalid authenticator code', totp_required: true });
+      } catch { return res.status(401).json({ error: 'TOTP error', totp_required: true }); }
+    }
   }
 
   try {
@@ -52,8 +59,10 @@ export default async function handler(req, res) {
 async function handleTOTPQR(res) {
   if (TOTP_SECRET && TOTP_SECRET !== 'DISABLED') return res.status(200).json({ already_configured: true });
   const secret = new OTPAuth.Secret({ size: 20 });
-  const totp   = new OTPAuth.TOTP({ issuer: 'LMTLS Draw', label: 'LMTLS Admin', secret, digits: 6, period: 30 });
-  return res.status(200).json({ secret_base32: secret.base32, otpauth_url: totp.toString() });
+  const base32 = secret.base32;
+  // Build otpauth URL manually for maximum compatibility with Microsoft Authenticator
+  const otpauth_url = 'otpauth://totp/LMTLS%20Draw%3Aadmin%40lmtlsperformance.ca?secret=' + base32 + '&issuer=LMTLS%20Draw&algorithm=SHA1&digits=6&period=30';
+  return res.status(200).json({ secret_base32: base32, otpauth_url });
 }
 
 async function getActiveGiveaway() {
@@ -77,6 +86,7 @@ async function handleStats(res) {
     free_only_participants: all.filter(e => e.paid_entries === 0).length,
     top_10:                 all.slice(0, 10),
     totp_configured:        !!(TOTP_SECRET && TOTP_SECRET !== 'DISABLED'),
+    session_token:          process.env.DRAW_PASSWORD + '_session_' + new Date().toISOString().slice(0,13),
   });
 }
 
