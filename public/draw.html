@@ -509,6 +509,8 @@ function goPage(id, btn) {
 // ── STATS ──
 function applyStats(data) {
   statsData = data;
+  // Capture session token so subsequent API calls don't need TOTP re-entry
+  if (data.session_token) sessionToken = data.session_token;
   var g = data.giveaway;
   document.getElementById('hdr-giveaway').textContent = g ? g.name : 'None';
   document.getElementById('dash-sub').textContent = g ? 'Active: '+g.name+' — Started '+new Date(g.created_at).toLocaleDateString('en-CA',{year:'numeric',month:'long',day:'numeric'}) : 'No active giveaway';
@@ -735,6 +737,7 @@ function confirmNewGiveaway(){
 // ── MFA SETTINGS ──
 function loadMFAStatus(){
   af('/api/draw?action=stats').then(r=>r.json()).then(function(data){
+    if (data.session_token) sessionToken = data.session_token;
     var configured=data.totp_configured;
     var dot=document.getElementById('mfa-dot');
     var text=document.getElementById('mfa-text');
