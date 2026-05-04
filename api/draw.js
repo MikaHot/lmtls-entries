@@ -250,15 +250,21 @@ async function handleGrantEntries(req, res) {
 }
 
 async function handleRevenue(req, res) {
-  const period = req.query.period || '30';
-  const since  = new Date();
-  since.setDate(since.getDate() - parseInt(period));
+  const period = parseInt(req.query.period || '30');
+  const allTime = period === 0;
 
-  const { data: logs } = await supabase.from('entries_log')
+  let logsQuery = supabase.from('entries_log')
     .select('id,email,order_amount,entries_awarded,created_at,giveaway_id,note,variant_id,pass_type')
     .eq('event_type', 'purchase')
-    .gte('created_at', since.toISOString())
     .order('created_at', { ascending: false });
+
+  if (!allTime) {
+    const since = new Date();
+    since.setDate(since.getDate() - period);
+    logsQuery = logsQuery.gte('created_at', since.toISOString());
+  }
+
+  const { data: logs } = await logsQuery;
 
   if (!logs) return res.status(500).json({ error: 'DB error' });
 
@@ -327,7 +333,7 @@ async function handleRevenue(req, res) {
   });
 
   return res.status(200).json({
-    period_days: parseInt(period), period_revenue: Math.round(totalRevenue*100)/100,
+    period_days: period, period_revenue: Math.round(totalRevenue*100)/100,
     period_orders: totalOrders, avg_order: totalOrders>0 ? Math.round((totalRevenue/totalOrders)*100)/100 : 0,
     alltime_revenue: Math.round(allTimeRevenue*100)/100, alltime_orders: allTimeOrders,
     daily, by_giveaway: Object.values(byGiveaway),

@@ -195,14 +195,17 @@
   <div class="login-box">
     <div class="login-logo">LMTLS</div>
     <div class="login-sub">Draw Admin Panel</div>
-    <label class="l-label">Password</label>
-    <input type="password" class="l-input" id="l-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')tryLogin()">
-    <div id="totp-section" style="display:none">
-      <label class="l-label">Authenticator Code</label>
-      <input type="text" class="l-input" id="l-totp" placeholder="000000" maxlength="6" style="letter-spacing:.3em;text-align:center" onkeydown="if(event.key==='Enter')tryLogin()">
-    </div>
-    <button class="l-btn" onclick="tryLogin()">ENTER ADMIN</button>
-    <div class="l-err" id="l-err"></div>
+    <form id="login-form" action="#" method="post" onsubmit="tryLogin();return false;" autocomplete="on">
+      <input type="hidden" name="username" id="l-user" value="admin" autocomplete="username">
+      <label class="l-label">Password</label>
+      <input type="password" class="l-input" id="l-pw" name="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')tryLogin()">
+      <div id="totp-section" style="display:none">
+        <label class="l-label">Authenticator Code</label>
+        <input type="text" class="l-input" id="l-totp" name="one-time-code" placeholder="000000" maxlength="6" autocomplete="one-time-code" style="letter-spacing:.3em;text-align:center" onkeydown="if(event.key==='Enter')tryLogin()">
+      </div>
+      <button type="submit" class="l-btn">ENTER ADMIN</button>
+      <div class="l-err" id="l-err"></div>
+    </form>
   </div>
 </div>
 
@@ -298,6 +301,7 @@
           <button class="period-btn" onclick="loadRev(30,this)">30 Days</button>
           <button class="period-btn" onclick="loadRev(90,this)">90 Days</button>
           <button class="period-btn" onclick="loadRev(365,this)">1 Year</button>
+          <button class="period-btn" onclick="loadRev(0,this)">All Time</button>
         </div>
         <div class="rev-grid">
           <div class="stat"><div class="stat-lbl">Period Revenue</div><div class="stat-num" id="r-rev">—</div><div class="stat-sub" id="r-period-lbl">last 7 days</div></div>
@@ -602,7 +606,7 @@ function loadP(page) {
 function loadRev(days, btn) {
   curRevPeriod=days;
   if(btn){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
-  document.getElementById('r-period-lbl').textContent='last '+days+' days';
+  document.getElementById('r-period-lbl').textContent=days===0?'all time':'last '+days+' days';
   af('/api/draw?action=revenue&period='+days).then(r=>r.json()).then(function(data){
     document.getElementById('r-rev').textContent='$'+data.period_revenue.toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});
     document.getElementById('r-orders').textContent=data.period_orders.toLocaleString();
