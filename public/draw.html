@@ -318,6 +318,15 @@
             </table>
           </div>
         </div>
+        <div class="card">
+          <div class="card-title">Revenue by Entry Pass</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Pass</th><th>Revenue</th><th>Orders</th><th>Entries Sold</th></tr></thead>
+              <tbody id="rev-by-pass-body"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- EXPORT -->
@@ -593,11 +602,23 @@ function loadRev(days, btn) {
     document.getElementById('r-alltime').textContent='$'+data.alltime_revenue.toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});
     renderChart(data.daily);
     var tbody=document.getElementById('rev-by-g-body');
-    if(!data.by_giveaway||!data.by_giveaway.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';return;}
-    tbody.innerHTML=data.by_giveaway.map(function(g){
+    if(!data.by_giveaway||!data.by_giveaway.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';}
+    else { tbody.innerHTML=data.by_giveaway.map(function(g){
       var avg=g.orders>0?(g.revenue/g.orders).toFixed(2):0;
       return '<tr><td>'+g.name+'</td><td class="td-big">$'+g.revenue.toFixed(2)+'</td><td>'+g.orders+'</td><td>$'+avg+'</td></tr>';
-    }).join('');
+    }).join(''); }
+    // Entry Pass breakdown
+    var PASS_COLORS = {Bronze:'#CD7F32',Silver:'#C0C0C0',Gold:'#FFD700',Platinum:'#E5E4E2',Other:'#555'};
+    var passTbody=document.getElementById('rev-by-pass-body');
+    var passRows=(data.by_pass||[]).filter(function(p){return p.orders>0;});
+    if(!passRows.length){passTbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';}
+    else { passTbody.innerHTML=passRows.map(function(p){
+      var color=PASS_COLORS[p.name]||'#aaa';
+      return '<tr><td><span style="color:'+color+';font-weight:700">'+p.name+'</span></td>'
+        +'<td class="td-big">$'+p.revenue.toFixed(2)+'</td>'
+        +'<td>'+p.orders+'</td>'
+        +'<td>'+p.entries.toLocaleString()+'</td></tr>';
+    }).join(''); }
   });
 }
 
@@ -657,7 +678,7 @@ function performDraw(isRedraw) {
           document.getElementById('w-ent').textContent=w.entries.toLocaleString();
           document.getElementById('w-total').textContent=s.total_entries.toLocaleString();
           document.getElementById('w-part').textContent=s.total_participants.toLocaleString();
-          document.getElementById('w-prob').textContent='Win probability: '+s.win_probability+'%';
+          document.getElementById('w-prob').textContent='Win probability: '+w.win_probability+'%';
           wBox.classList.add('visible'); btn.disabled=false;
           document.getElementById('redraw-btn').style.display='block';
           document.getElementById('draw-btn').style.display='none';

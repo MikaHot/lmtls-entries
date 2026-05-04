@@ -244,7 +244,7 @@ async function handleRevenue(req, res) {
   since.setDate(since.getDate() - parseInt(period));
 
   const { data: logs } = await supabase.from('entries_log')
-    .select('id,email,order_amount,entries_awarded,created_at,giveaway_id,note')
+    .select('id,email,order_amount,entries_awarded,created_at,giveaway_id,note,variant_id,pass_type')
     .eq('event_type', 'purchase')
     .gte('created_at', since.toISOString())
     .order('created_at', { ascending: false });
@@ -253,6 +253,15 @@ async function handleRevenue(req, res) {
 
   const dailyMap = {};
   let totalRevenue = 0, totalOrders = 0;
+
+  const byPass = {
+    bronze:   { name: 'Bronze',   revenue: 0, orders: 0, entries: 0 },
+    silver:   { name: 'Silver',   revenue: 0, orders: 0, entries: 0 },
+    gold:     { name: 'Gold',     revenue: 0, orders: 0, entries: 0 },
+    platinum: { name: 'Platinum', revenue: 0, orders: 0, entries: 0 },
+    other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0 },
+  };
+
   logs.forEach(l => {
     const amount = parseFloat(l.order_amount || 0);
     const day    = l.created_at.slice(0, 10);
@@ -262,6 +271,12 @@ async function handleRevenue(req, res) {
     dailyMap[day].entries  += l.entries_awarded || 0;
     totalRevenue += amount;
     totalOrders  += 1;
+
+    const pt = (l.pass_type || 'other').toLowerCase();
+    const key = byPass[pt] ? pt : 'other';
+    byPass[key].revenue += amount;
+    byPass[key].orders  += 1;
+    byPass[key].entries += l.entries_awarded || 0;
   });
 
   const daily = Object.values(dailyMap).sort((a,b) => a.date.localeCompare(b.date));
@@ -278,7 +293,8 @@ async function handleRevenue(req, res) {
     byGiveaway[gid].orders  += 1;
   });
 
-  const { data: allLogs } = await supabase.from('entries_log').select('order_amount').eq('event_type','purchase');
+  const { data: allLogs } = await supabase.from('entries_log')
+    .select('order_amount').eq('event_type','purchase');
   const allTimeRevenue = (allLogs||[]).reduce((s,l) => s + parseFloat(l.order_amount||0), 0);
 
   return res.status(200).json({
@@ -286,7 +302,8 @@ async function handleRevenue(req, res) {
     period_orders: totalOrders, avg_order: totalOrders>0 ? Math.round((totalRevenue/totalOrders)*100)/100 : 0,
     alltime_revenue: Math.round(allTimeRevenue*100)/100, alltime_orders: allLogs?.length||0,
     daily, by_giveaway: Object.values(byGiveaway),
-    transactions: logs.slice(0,50), // most recent 50 transactions
+    by_pass: Object.values(byPass),
+    transactions: logs.slice(0,50),
   });
 }
 
