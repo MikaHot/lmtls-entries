@@ -57,10 +57,21 @@ export default async function handler(req, res) {
 }
 
 async function handleTOTPQR(res) {
-  if (TOTP_SECRET && TOTP_SECRET !== 'DISABLED') return res.status(200).json({ already_configured: true });
+  // If already configured — return the EXISTING secret QR so user can add another device
+  if (TOTP_SECRET && TOTP_SECRET !== 'DISABLED') {
+    const otpauth_url = 'otpauth://totp/LMTLS%20Draw%3Aadmin%40lmtlsperformance.ca?secret=' + TOTP_SECRET + '&issuer=LMTLS%20Draw&algorithm=SHA1&digits=6&period=30';
+    return res.status(200).json({
+      already_configured: true,
+      existing_secret: TOTP_SECRET,
+      existing_otpauth_url: otpauth_url,
+      // Also populate standard fields so the same QR display code works
+      secret_base32: TOTP_SECRET,
+      otpauth_url,
+    });
+  }
+  // First-time setup — generate new secret
   const secret = new OTPAuth.Secret({ size: 20 });
   const base32 = secret.base32;
-  // Build otpauth URL manually for maximum compatibility with Microsoft Authenticator
   const otpauth_url = 'otpauth://totp/LMTLS%20Draw%3Aadmin%40lmtlsperformance.ca?secret=' + base32 + '&issuer=LMTLS%20Draw&algorithm=SHA1&digits=6&period=30';
   return res.status(200).json({ secret_base32: base32, otpauth_url });
 }
@@ -294,15 +305,34 @@ async function handleRevenue(req, res) {
   });
 
   const { data: allLogs } = await supabase.from('entries_log')
-    .select('order_amount').eq('event_type','purchase');
+    .select('order_amount,pass_type,entries_awarded').eq('event_type','purchase');
+
   const allTimeRevenue = (allLogs||[]).reduce((s,l) => s + parseFloat(l.order_amount||0), 0);
+  const allTimeOrders  = allLogs?.length || 0;
+
+  // All-time breakdown by pass
+  const allTimeByPass = {
+    bronze:   { name: 'Bronze',   revenue: 0, orders: 0, entries: 0 },
+    silver:   { name: 'Silver',   revenue: 0, orders: 0, entries: 0 },
+    gold:     { name: 'Gold',     revenue: 0, orders: 0, entries: 0 },
+    platinum: { name: 'Platinum', revenue: 0, orders: 0, entries: 0 },
+    other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0 },
+  };
+  (allLogs||[]).forEach(l => {
+    const pt  = (l.pass_type || 'other').toLowerCase();
+    const key = allTimeByPass[pt] ? pt : 'other';
+    allTimeByPass[key].revenue += parseFloat(l.order_amount||0);
+    allTimeByPass[key].orders  += 1;
+    allTimeByPass[key].entries += l.entries_awarded || 0;
+  });
 
   return res.status(200).json({
     period_days: parseInt(period), period_revenue: Math.round(totalRevenue*100)/100,
     period_orders: totalOrders, avg_order: totalOrders>0 ? Math.round((totalRevenue/totalOrders)*100)/100 : 0,
-    alltime_revenue: Math.round(allTimeRevenue*100)/100, alltime_orders: allLogs?.length||0,
+    alltime_revenue: Math.round(allTimeRevenue*100)/100, alltime_orders: allTimeOrders,
     daily, by_giveaway: Object.values(byGiveaway),
     by_pass: Object.values(byPass),
+    alltime_by_pass: Object.values(allTimeByPass),
     transactions: logs.slice(0,50),
   });
 }

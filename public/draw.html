@@ -320,10 +320,18 @@
         </div>
         <div class="card">
           <div class="card-title">Revenue by Entry Pass</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;letter-spacing:.08em">SELECTED PERIOD</div>
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Pass</th><th>Revenue</th><th>Orders</th><th>Entries Sold</th></tr></thead>
               <tbody id="rev-by-pass-body"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin:18px 0 10px;letter-spacing:.08em">ALL TIME (SINCE LAUNCH)</div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Pass</th><th>Revenue</th><th>Orders</th><th>Entries Sold</th></tr></thead>
+              <tbody id="rev-alltime-pass-body"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -609,16 +617,25 @@ function loadRev(days, btn) {
     }).join(''); }
     // Entry Pass breakdown
     var PASS_COLORS = {Bronze:'#CD7F32',Silver:'#C0C0C0',Gold:'#FFD700',Platinum:'#E5E4E2',Other:'#555'};
-    var passTbody=document.getElementById('rev-by-pass-body');
-    var passRows=(data.by_pass||[]).filter(function(p){return p.orders>0;});
-    if(!passRows.length){passTbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';}
-    else { passTbody.innerHTML=passRows.map(function(p){
-      var color=PASS_COLORS[p.name]||'#aaa';
-      return '<tr><td><span style="color:'+color+';font-weight:700">'+p.name+'</span></td>'
-        +'<td class="td-big">$'+p.revenue.toFixed(2)+'</td>'
-        +'<td>'+p.orders+'</td>'
-        +'<td>'+p.entries.toLocaleString()+'</td></tr>';
-    }).join(''); }
+
+    function renderPassTable(rows, tbodyId) {
+      var tbody=document.getElementById(tbodyId);
+      if(!tbody) return;
+      var active=rows.filter(function(p){return p.orders>0;});
+      if(!active.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';return;}
+      tbody.innerHTML=active.map(function(p){
+        var color=PASS_COLORS[p.name]||'#aaa';
+        return '<tr>'
+          +'<td><span style="color:'+color+';font-weight:700">'+p.name+'</span></td>'
+          +'<td class="td-big">$'+p.revenue.toFixed(2)+'</td>'
+          +'<td>'+p.orders+'</td>'
+          +'<td>'+p.entries.toLocaleString()+'</td>'
+          +'</tr>';
+      }).join('');
+    }
+
+    renderPassTable(data.by_pass||[], 'rev-by-pass-body');
+    renderPassTable(data.alltime_by_pass||[], 'rev-alltime-pass-body');
   });
 }
 
@@ -772,8 +789,35 @@ function loadMFAStatus(){
     if(!configured){
       area.innerHTML='<button class="action-btn btn-white" onclick="setupMFA()" style="margin-top:12px">🔐 SETUP MICROSOFT AUTHENTICATOR</button><div id="mfa-qr-area"></div>';
     } else {
-      area.innerHTML='<p style="font-size:12px;color:var(--sub);margin-top:12px;line-height:1.8">To disable MFA, remove the <code style="background:var(--bg3);padding:2px 6px">TOTP_SECRET</code> environment variable in Vercel and set it to <code style="background:var(--bg3);padding:2px 6px">DISABLED</code>, then redeploy.</p>';
+      area.innerHTML=
+        '<div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">'+
+        '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px 18px">'+
+        '<div style="font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">Add to another device</div>'+
+        '<p style="font-size:12px;color:var(--sub);margin:0 0 12px">Scan this QR with Microsoft Authenticator on any other device. It uses the same secret already configured.</p>'+
+        '<button class="action-btn btn-white" onclick="showAddDeviceQR()" style="font-size:13px;padding:8px 16px">📱 SHOW QR FOR ANOTHER DEVICE</button>'+
+        '<div id="add-device-area"></div>'+
+        '</div>'+
+        '<p style="font-size:12px;color:var(--muted);line-height:1.8">To disable MFA, set <code style="background:var(--bg3);padding:2px 6px">TOTP_SECRET</code> to <code style="background:var(--bg3);padding:2px 6px">DISABLED</code> in Vercel env vars and redeploy.</p>'+
+        '</div>';
     }
+  });
+}
+
+function showAddDeviceQR(){
+  af('/api/draw?action=totp-qr').then(r=>r.json()).then(function(data){
+    var area=document.getElementById('add-device-area');
+    if(!area) return;
+    // If not configured yet (shouldn't happen here), show setup instead
+    var secret=data.secret_base32||data.existing_secret;
+    var otpURL=data.otpauth_url||data.existing_otpauth_url;
+    if(!otpURL){area.innerHTML='<p style="color:var(--red);margin-top:10px;font-size:12px">Could not load QR — check Vercel TOTP_SECRET.</p>';return;}
+    var qrURL='https://api.qrserver.com/v1/create-qr-code/?data='+encodeURIComponent(otpURL)+'&size=160x160&bgcolor=0d0d0d&color=ffffff';
+    area.innerHTML=
+      '<div class="qr-wrap" style="margin-top:16px">'+ 
+      '<p style="font-size:11px;color:var(--muted);margin-bottom:10px">Open Microsoft Authenticator → + → Other account → Scan</p>'+
+      '<img src="'+qrURL+'" alt="QR" width="160" height="160">'+
+      (secret?'<div class="secret-box" style="margin-top:10px;font-size:11px">'+secret+'</div>':'')+
+      '</div>';
   });
 }
 
