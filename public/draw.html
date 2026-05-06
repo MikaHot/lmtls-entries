@@ -249,7 +249,21 @@
           <div class="stat"><div class="stat-lbl">Paid Entries</div><div class="stat-num" id="s-paid">—</div><div class="stat-sub">from purchases</div></div>
           <div class="stat"><div class="stat-lbl">Free Entries</div><div class="stat-num" id="s-free">—</div><div class="stat-sub">sign-up bonuses</div></div>
           <div class="stat"><div class="stat-lbl">Free-Only Members</div><div class="stat-num" id="s-fonly">—</div><div class="stat-sub">no purchase yet</div></div>
-          <div class="stat"><div class="stat-lbl">Paid Entry %</div><div class="stat-num" id="s-ratio">—</div><div class="stat-sub">of total pool</div></div>
+          <div class="stat" style="display:flex;flex-direction:column;align-items:flex-start;gap:0">
+            <div class="stat-lbl">Entry Breakdown</div>
+            <div style="display:flex;align-items:flex-end;gap:18px;margin:6px 0 2px">
+              <div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;line-height:1;color:var(--fg)" id="s-ratio">—</div>
+                <div style="font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">Paid</div>
+              </div>
+              <div style="width:1px;height:32px;background:var(--border);flex-shrink:0"></div>
+              <div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;line-height:1;color:var(--sub)" id="s-free-ratio">—</div>
+                <div style="font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">Free</div>
+              </div>
+            </div>
+            <div class="stat-sub">of total entry pool</div>
+          </div>
         </div>
         <div class="card">
           <div class="card-title">Top 10 Participants</div>
@@ -317,7 +331,7 @@
           <div class="card-title">Revenue by Giveaway</div>
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>Giveaway</th><th>Revenue</th><th>Orders</th><th>Avg Order</th></tr></thead>
+              <thead><tr><th>Giveaway</th><th>Revenue</th><th>Orders</th><th>Entries Sold</th><th>Avg Order</th></tr></thead>
               <tbody id="rev-by-g-body"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr></tbody>
             </table>
           </div>
@@ -540,8 +554,10 @@ function applyStats(data) {
   document.getElementById('s-paid').textContent  = data.total_paid_entries.toLocaleString();
   document.getElementById('s-free').textContent  = data.total_free_entries.toLocaleString();
   document.getElementById('s-fonly').textContent = data.free_only_participants.toLocaleString();
-  var ratio = data.total_entries>0 ? Math.round((data.total_paid_entries/data.total_entries)*100) : 0;
-  document.getElementById('s-ratio').textContent = ratio+'%';
+  var ratio     = data.total_entries>0 ? Math.round((data.total_paid_entries/data.total_entries)*100) : 0;
+  var freeRatio = data.total_entries>0 ? Math.round((data.total_free_entries/data.total_entries)*100) : 0;
+  document.getElementById('s-ratio').textContent      = ratio+'%';
+  document.getElementById('s-free-ratio').textContent = freeRatio+'%';
   renderTop10(data.top_10, data.total_entries);
   if(g) {
     document.getElementById('draw-g-name').value = g.name;
@@ -614,18 +630,23 @@ function loadRev(days, btn) {
     document.getElementById('r-alltime').textContent='$'+data.alltime_revenue.toLocaleString('en-CA',{minimumFractionDigits:2,maximumFractionDigits:2});
     renderChart(data.daily);
     var tbody=document.getElementById('rev-by-g-body');
-    if(!data.by_giveaway||!data.by_giveaway.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';}
+    if(!data.by_giveaway||!data.by_giveaway.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';}
     else { tbody.innerHTML=data.by_giveaway.map(function(g){
       var avg=g.orders>0?(g.revenue/g.orders).toFixed(2):0;
-      return '<tr><td>'+g.name+'</td><td class="td-big">$'+g.revenue.toFixed(2)+'</td><td>'+g.orders+'</td><td>$'+avg+'</td></tr>';
+      return '<tr><td>'+g.name+'</td>'
+        +'<td class="td-big">$'+g.revenue.toFixed(2)+'</td>'
+        +'<td>'+g.orders+'</td>'
+        +'<td>'+(g.entries||0).toLocaleString()+'</td>'
+        +'<td>$'+avg+'</td></tr>';
     }).join(''); }
     // Entry Pass breakdown
-    var PASS_COLORS = {Bronze:'#CD7F32',Silver:'#C0C0C0',Gold:'#FFD700',Platinum:'#E5E4E2',Other:'#555'};
+    var PASS_COLORS = {Bronze:'#CD7F32',Silver:'#A8A9AD',Gold:'#FFD700',Platinum:'#9B59B6',Other:'#555'};
 
     function renderPassTable(rows, tbodyId) {
       var tbody=document.getElementById(tbodyId);
       if(!tbody) return;
-      var active=rows.filter(function(p){return p.orders>0;});
+      // Hide "Other" pass if it has no revenue (don't clutter with non-Entry-Pass products)
+      var active=rows.filter(function(p){return p.orders>0 && !(p.name==='Other' && p.revenue===0);});
       if(!active.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">No data</td></tr>';return;}
       tbody.innerHTML=active.map(function(p){
         var color=PASS_COLORS[p.name]||'#aaa';

@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   if (TOTP_SECRET && TOTP_SECRET !== 'DISABLED') {
     const sessionToken = req.headers['x-session-token'] || '';
     // Accept valid session token (avoids re-entering TOTP every call)
-    if (sessionToken && sessionToken === process.env.DRAW_PASSWORD + '_session_' + new Date().toISOString().slice(0,13)) {
+    if (sessionToken && sessionToken === process.env.DRAW_PASSWORD + '_session_' + Math.floor(Date.now() / (4*3600*1000))) {
       // Valid session (expires at end of current hour)
     } else {
       if (!totpCode) return res.status(401).json({ error: 'Authenticator code required', totp_required: true });
@@ -97,7 +97,7 @@ async function handleStats(res) {
     free_only_participants: all.filter(e => e.paid_entries === 0).length,
     top_10:                 all.slice(0, 10),
     totp_configured:        !!(TOTP_SECRET && TOTP_SECRET !== 'DISABLED'),
-    session_token:          process.env.DRAW_PASSWORD + '_session_' + new Date().toISOString().slice(0,13),
+    session_token:          process.env.DRAW_PASSWORD + '_session_' + Math.floor(Date.now() / (4*3600*1000)),
   });
 }
 
@@ -272,29 +272,31 @@ async function handleRevenue(req, res) {
   let totalRevenue = 0, totalOrders = 0;
 
   const byPass = {
-    bronze:   { name: 'Bronze',   revenue: 0, orders: 0, entries: 0 },
-    silver:   { name: 'Silver',   revenue: 0, orders: 0, entries: 0 },
-    gold:     { name: 'Gold',     revenue: 0, orders: 0, entries: 0 },
-    platinum: { name: 'Platinum', revenue: 0, orders: 0, entries: 0 },
-    other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0 },
+    bronze:   { name: 'Bronze',   revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
+    silver:   { name: 'Silver',   revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
+    gold:     { name: 'Gold',     revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
+    platinum: { name: 'Platinum', revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
+    other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
   };
+  const periodOrderIds = new Set(); // unique orders for period count
 
   logs.forEach(l => {
     const amount = parseFloat(l.order_amount || 0);
     const day    = l.created_at.slice(0, 10);
     if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, orders: 0, entries: 0 };
     dailyMap[day].revenue  += amount;
-    dailyMap[day].orders   += 1;
     dailyMap[day].entries  += l.entries_awarded || 0;
     totalRevenue += amount;
-    totalOrders  += 1;
+    if (l.order_id) { periodOrderIds.add(l.order_id); dailyMap[day].orders = 1; } // approximate
 
     const pt = (l.pass_type || 'other').toLowerCase();
     const key = byPass[pt] ? pt : 'other';
     byPass[key].revenue += amount;
-    byPass[key].orders  += 1;
     byPass[key].entries += l.entries_awarded || 0;
+    if (l.order_id) byPass[key].order_ids.add(l.order_id);
   });
+  totalOrders = periodOrderIds.size;
+  Object.values(byPass).forEach(p => { p.orders = p.order_ids.size; delete p.order_ids; });
 
   const daily = Object.values(dailyMap).sort((a,b) => a.date.localeCompare(b.date));
 
@@ -303,12 +305,16 @@ async function handleRevenue(req, res) {
   if (giveaways) giveaways.forEach(g => { gMap[g.id] = g.name; });
 
   const byGiveaway = {};
+  const orderIdsSeen = new Set(); // for unique order counting
   logs.forEach(l => {
     const gid = l.giveaway_id || 'unknown';
-    if (!byGiveaway[gid]) byGiveaway[gid] = { name: gMap[gid]||'Unknown', revenue: 0, orders: 0 };
+    if (!byGiveaway[gid]) byGiveaway[gid] = { name: gMap[gid]||'Unknown', revenue: 0, orders: 0, entries: 0, order_ids: new Set() };
     byGiveaway[gid].revenue += parseFloat(l.order_amount||0);
-    byGiveaway[gid].orders  += 1;
+    byGiveaway[gid].entries += l.entries_awarded || 0;
+    if (l.order_id) byGiveaway[gid].order_ids.add(l.order_id);
   });
+  // Convert Set to count
+  Object.values(byGiveaway).forEach(g => { g.orders = g.order_ids.size; delete g.order_ids; });
 
   const { data: allLogs } = await supabase.from('entries_log')
     .select('order_amount,pass_type,entries_awarded').eq('event_type','purchase');
