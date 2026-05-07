@@ -45,6 +45,7 @@ export default async function handler(req, res) {
     if (action === 'active-giveaway')   return await handleActiveGiveaway(res);
     if (action === 'totp-qr')           return await handleTOTPQR(res);
     if (action === 'revenue')           return await handleRevenue(req, res);
+    if (action === 'debug-orders')       return await handleDebugOrders(req, res);
     if (action === 'export-csv')        return await handleExportCSV(req, res);
     if (action === 'delete-transaction')return await handleDeleteTransaction(req, res);
     if (action === 'transactions')      return await handleTransactions(req, res);
@@ -424,4 +425,18 @@ async function handleExportCSV(req, res) {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="lmtls-${type}-${new Date().toISOString().slice(0,10)}.csv"`);
   return res.status(200).send(csv);
+}
+
+async function handleDebugOrders(req, res) {
+  const { data } = await supabase.from('entries_log')
+    .select('id,order_id,pass_type,order_amount,event_type,created_at')
+    .eq('event_type','purchase')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return res.status(200).json({
+    total_rows: data?.length,
+    rows: data,
+    order_ids_found: (data||[]).filter(r => r.order_id).length,
+    order_ids_null:  (data||[]).filter(r => !r.order_id).length,
+  });
 }
