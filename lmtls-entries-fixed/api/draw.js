@@ -263,11 +263,16 @@ async function handleRevenue(req, res) {
   if (!allTime) {
     const since = new Date();
     since.setDate(since.getDate() - period);
+    since.setHours(0, 0, 0, 0); // start of day to avoid timezone edge issues
     q = q.gte('created_at', since.toISOString());
   }
 
   const { data: logs, error } = await q;
   if (error || !logs) return res.status(500).json({ error: error?.message || 'DB error' });
+
+  // Temp debug — remove once orders fixed
+  console.log('[revenue debug] period:', period, 'allTime:', allTime, 'logs count:', logs.length,
+    'sample order_ids:', logs.slice(0,3).map(l => l.order_id));
 
   // ── Aggregate ────────────────────────────────────────────────────────
   // Use plain objects as sets (key = order_id string) to avoid any runtime issues with Set
@@ -381,6 +386,9 @@ async function handleRevenue(req, res) {
   }));
 
   return res.status(200).json({
+    _debug: { logs_count: logs.length, period, allTime,
+      sample_order_ids: logs.slice(0,3).map(l=>l.order_id),
+      period_order_map_keys: Object.keys(periodOrderMap).length },
     period_days:    period,
     period_revenue: Math.round(totalRevenue*100)/100,
     period_orders:  totalOrders,
