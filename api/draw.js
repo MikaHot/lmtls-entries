@@ -279,15 +279,20 @@ async function handleRevenue(req, res) {
     other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
   };
   const periodOrderIds = new Set(); // unique orders for period count
+  const dailyOrderIds  = {};        // per-day unique order sets
 
   logs.forEach(l => {
     const amount = parseFloat(l.order_amount || 0);
     const day    = l.created_at.slice(0, 10);
     if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, orders: 0, entries: 0 };
-    dailyMap[day].revenue  += amount;
-    dailyMap[day].entries  += l.entries_awarded || 0;
+    if (!dailyOrderIds[day]) dailyOrderIds[day] = new Set();
+    dailyMap[day].revenue += amount;
+    dailyMap[day].entries += l.entries_awarded || 0;
     totalRevenue += amount;
-    if (l.order_id) { periodOrderIds.add(l.order_id); dailyMap[day].orders = 1; } // approximate
+    if (l.order_id) {
+      periodOrderIds.add(l.order_id);
+      dailyOrderIds[day].add(l.order_id);
+    }
 
     const pt = (l.pass_type || 'other').toLowerCase();
     const key = byPass[pt] ? pt : 'other';
@@ -295,6 +300,12 @@ async function handleRevenue(req, res) {
     byPass[key].entries += l.entries_awarded || 0;
     if (l.order_id) byPass[key].order_ids.add(l.order_id);
   });
+
+  // Set daily order counts from unique order_ids
+  Object.keys(dailyOrderIds).forEach(day => {
+    if (dailyMap[day]) dailyMap[day].orders = dailyOrderIds[day].size;
+  });
+
   totalOrders = periodOrderIds.size;
   Object.values(byPass).forEach(p => { p.orders = p.order_ids.size; delete p.order_ids; });
 
