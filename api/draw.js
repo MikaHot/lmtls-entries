@@ -328,26 +328,29 @@ async function handleRevenue(req, res) {
   Object.values(byGiveaway).forEach(g => { g.orders = g.order_ids.size; delete g.order_ids; });
 
   const { data: allLogs } = await supabase.from('entries_log')
-    .select('order_amount,pass_type,entries_awarded').eq('event_type','purchase');
+    .select('order_amount,pass_type,entries_awarded,order_id').eq('event_type','purchase');
 
-  const allTimeRevenue = (allLogs||[]).reduce((s,l) => s + parseFloat(l.order_amount||0), 0);
-  const allTimeOrders  = allLogs?.length || 0;
+  const allTimeRevenue  = (allLogs||[]).reduce((s,l) => s + parseFloat(l.order_amount||0), 0);
+  // Count unique order_ids for all-time orders
+  const allTimeOrderSet = new Set((allLogs||[]).map(l => l.order_id).filter(Boolean));
+  const allTimeOrders   = allTimeOrderSet.size;
 
-  // All-time breakdown by pass
+  // All-time breakdown by pass (unique orders per pass)
   const allTimeByPass = {
-    bronze:   { name: 'Bronze',   revenue: 0, orders: 0, entries: 0 },
-    silver:   { name: 'Silver',   revenue: 0, orders: 0, entries: 0 },
-    gold:     { name: 'Gold',     revenue: 0, orders: 0, entries: 0 },
-    platinum: { name: 'Platinum', revenue: 0, orders: 0, entries: 0 },
-    other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0 },
+    bronze:   { name: 'Bronze',   revenue: 0, orders: 0, entries: 0, _oids: new Set() },
+    silver:   { name: 'Silver',   revenue: 0, orders: 0, entries: 0, _oids: new Set() },
+    gold:     { name: 'Gold',     revenue: 0, orders: 0, entries: 0, _oids: new Set() },
+    platinum: { name: 'Platinum', revenue: 0, orders: 0, entries: 0, _oids: new Set() },
+    other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0, _oids: new Set() },
   };
   (allLogs||[]).forEach(l => {
     const pt  = (l.pass_type || 'other').toLowerCase();
     const key = allTimeByPass[pt] ? pt : 'other';
     allTimeByPass[key].revenue += parseFloat(l.order_amount||0);
-    allTimeByPass[key].orders  += 1;
     allTimeByPass[key].entries += l.entries_awarded || 0;
+    if (l.order_id) allTimeByPass[key]._oids.add(l.order_id);
   });
+  Object.values(allTimeByPass).forEach(p => { p.orders = p._oids.size; delete p._oids; });
 
   return res.status(200).json({
     period_days: period, period_revenue: Math.round(totalRevenue*100)/100,
