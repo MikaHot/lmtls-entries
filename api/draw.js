@@ -45,6 +45,7 @@ export default async function handler(req, res) {
     if (action === 'active-giveaway')   return await handleActiveGiveaway(res);
     if (action === 'totp-qr')           return await handleTOTPQR(res);
     if (action === 'revenue')           return await handleRevenue(req, res);
+    if (action === 'debug-orders')       return await handleDebugOrders(req, res);
     if (action === 'export-csv')        return await handleExportCSV(req, res);
     if (action === 'delete-transaction')return await handleDeleteTransaction(req, res);
     if (action === 'transactions')      return await handleTransactions(req, res);
@@ -250,120 +251,158 @@ async function handleGrantEntries(req, res) {
 }
 
 async function handleRevenue(req, res) {
-  const period = parseInt(req.query.period || '30');
+  const period  = parseInt(req.query.period || '30');
   const allTime = period === 0;
 
-  let logsQuery = supabase.from('entries_log')
-    .select('id,email,order_amount,entries_awarded,created_at,giveaway_id,note,variant_id,pass_type')
+  // ── Fetch logs ──────────────────────────────────────────────────────
+  let q = supabase.from('entries_log')
+    .select('id,email,order_amount,entries_awarded,created_at,giveaway_id,pass_type,order_id')
     .eq('event_type', 'purchase')
     .order('created_at', { ascending: false });
 
   if (!allTime) {
     const since = new Date();
     since.setDate(since.getDate() - period);
-    logsQuery = logsQuery.gte('created_at', since.toISOString());
+    since.setHours(0, 0, 0, 0); // start of day to avoid timezone edge issues
+    q = q.gte('created_at', since.toISOString());
   }
 
-  const { data: logs } = await logsQuery;
+  const { data: logs, error } = await q;
+  if (error || !logs) return res.status(500).json({ error: error?.message || 'DB error' });
 
-  if (!logs) return res.status(500).json({ error: 'DB error' });
+  // Temp debug — remove once orders fixed
+  console.log('[revenue debug] period:', period, 'allTime:', allTime, 'logs count:', logs.length,
+    'sample order_ids:', logs.slice(0,3).map(l => l.order_id));
 
-  const dailyMap = {};
-  let totalRevenue = 0, totalOrders = 0;
-
-  const byPass = {
-    bronze:   { name: 'Bronze',   revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
-    silver:   { name: 'Silver',   revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
-    gold:     { name: 'Gold',     revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
-    platinum: { name: 'Platinum', revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
-    other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0, order_ids: new Set() },
+  // ── Aggregate ────────────────────────────────────────────────────────
+  // Use plain objects as sets (key = order_id string) to avoid any runtime issues with Set
+  const periodOrderMap = {};   // { order_id: true }
+  const dailyMap       = {};   // { date: { revenue, entries, orderMap } }
+  const byPassMap      = {
+    bronze:   { name:'Bronze',   revenue:0, entries:0, orderMap:{} },
+    silver:   { name:'Silver',   revenue:0, entries:0, orderMap:{} },
+    gold:     { name:'Gold',     revenue:0, entries:0, orderMap:{} },
+    platinum: { name:'Platinum', revenue:0, entries:0, orderMap:{} },
+    other:    { name:'Other',    revenue:0, entries:0, orderMap:{} },
   };
-  const periodOrderIds = new Set(); // unique orders for period count
-  const dailyOrderIds  = {};        // per-day unique order sets
+  const byGiveawayMap = {};
+
+  let totalRevenue = 0;
 
   logs.forEach(l => {
-    const amount = parseFloat(l.order_amount || 0);
-    const day    = l.created_at.slice(0, 10);
-    if (!dailyMap[day]) dailyMap[day] = { date: day, revenue: 0, orders: 0, entries: 0 };
-    if (!dailyOrderIds[day]) dailyOrderIds[day] = new Set();
-    dailyMap[day].revenue += amount;
-    dailyMap[day].entries += l.entries_awarded || 0;
+    const amount  = parseFloat(l.order_amount) || 0;
+    const oid     = l.order_id ? String(l.order_id) : null;
+    const day     = (l.created_at || '').slice(0, 10);
+    const pt      = (l.pass_type  || 'other').toLowerCase();
+    const gid     = l.giveaway_id || 'unknown';
+    const entries = parseInt(l.entries_awarded) || 0;
+
     totalRevenue += amount;
-    if (l.order_id) {
-      periodOrderIds.add(l.order_id);
-      dailyOrderIds[day].add(l.order_id);
+    if (oid) periodOrderMap[oid] = true;
+
+    // Daily
+    if (!dailyMap[day]) dailyMap[day] = { date:day, revenue:0, entries:0, orderMap:{} };
+    dailyMap[day].revenue += amount;
+    dailyMap[day].entries += entries;
+    if (oid) dailyMap[day].orderMap[oid] = true;
+
+    // By pass
+    const pk = byPassMap[pt] ? pt : 'other';
+    byPassMap[pk].revenue += amount;
+    byPassMap[pk].entries += entries;
+    if (oid) byPassMap[pk].orderMap[oid] = true;
+
+    // By giveaway
+    if (!byGiveawayMap[gid]) {
+      const { data: giveaways } = { data: null }; // resolved below
+      byGiveawayMap[gid] = { gid, revenue:0, entries:0, orderMap:{} };
     }
-
-    const pt = (l.pass_type || 'other').toLowerCase();
-    const key = byPass[pt] ? pt : 'other';
-    byPass[key].revenue += amount;
-    byPass[key].entries += l.entries_awarded || 0;
-    if (l.order_id) byPass[key].order_ids.add(l.order_id);
+    byGiveawayMap[gid].revenue += amount;
+    byGiveawayMap[gid].entries += entries;
+    if (oid) byGiveawayMap[gid].orderMap[oid] = true;
   });
 
-  // Set daily order counts from unique order_ids
-  Object.keys(dailyOrderIds).forEach(day => {
-    if (dailyMap[day]) dailyMap[day].orders = dailyOrderIds[day].size;
-  });
-
-  totalOrders = periodOrderIds.size;
-  Object.values(byPass).forEach(p => { p.orders = p.order_ids.size; delete p.order_ids; });
-
-  const daily = Object.values(dailyMap).sort((a,b) => a.date.localeCompare(b.date));
-
+  // Resolve giveaway names
   const { data: giveaways } = await supabase.from('giveaways').select('id,name');
   const gMap = {};
   if (giveaways) giveaways.forEach(g => { gMap[g.id] = g.name; });
 
-  const byGiveaway = {};
-  const orderIdsSeen = new Set(); // for unique order counting
-  logs.forEach(l => {
-    const gid = l.giveaway_id || 'unknown';
-    if (!byGiveaway[gid]) byGiveaway[gid] = { name: gMap[gid]||'Unknown', revenue: 0, orders: 0, entries: 0, order_ids: new Set() };
-    byGiveaway[gid].revenue += parseFloat(l.order_amount||0);
-    byGiveaway[gid].entries += l.entries_awarded || 0;
-    if (l.order_id) byGiveaway[gid].order_ids.add(l.order_id);
-  });
-  // Convert Set to count
-  Object.values(byGiveaway).forEach(g => { g.orders = g.order_ids.size; delete g.order_ids; });
+  // Convert dailyMap
+  const daily = Object.values(dailyMap).map(d => ({
+    date: d.date, revenue: d.revenue, entries: d.entries,
+    orders: Object.keys(d.orderMap).length,
+  })).sort((a,b) => a.date.localeCompare(b.date));
 
+  // Convert byPass
+  const byPass = Object.values(byPassMap).map(p => ({
+    name: p.name, revenue: Math.round(p.revenue*100)/100,
+    orders: Object.keys(p.orderMap).length, entries: p.entries,
+  }));
+
+  // Convert byGiveaway
+  const byGiveaway = Object.values(byGiveawayMap).map(g => ({
+    name: gMap[g.gid] || 'Unknown',
+    revenue: Math.round(g.revenue*100)/100,
+    orders: Object.keys(g.orderMap).length,
+    entries: g.entries,
+    avg_order: Object.keys(g.orderMap).length > 0
+      ? Math.round((g.revenue / Object.keys(g.orderMap).length)*100)/100 : 0,
+  }));
+
+  const totalOrders = Object.keys(periodOrderMap).length;
+
+  // ── All-time query ───────────────────────────────────────────────────
   const { data: allLogs } = await supabase.from('entries_log')
-    .select('order_amount,pass_type,entries_awarded,order_id').eq('event_type','purchase');
+    .select('order_amount,pass_type,entries_awarded,order_id')
+    .eq('event_type', 'purchase');
 
-  const allTimeRevenue  = (allLogs||[]).reduce((s,l) => s + parseFloat(l.order_amount||0), 0);
-  // Count unique order_ids for all-time orders
-  const allTimeOrderSet = new Set((allLogs||[]).map(l => l.order_id).filter(Boolean));
-  const allTimeOrders   = allTimeOrderSet.size;
-
-  // All-time breakdown by pass (unique orders per pass)
-  const allTimeByPass = {
-    bronze:   { name: 'Bronze',   revenue: 0, orders: 0, entries: 0, _oids: new Set() },
-    silver:   { name: 'Silver',   revenue: 0, orders: 0, entries: 0, _oids: new Set() },
-    gold:     { name: 'Gold',     revenue: 0, orders: 0, entries: 0, _oids: new Set() },
-    platinum: { name: 'Platinum', revenue: 0, orders: 0, entries: 0, _oids: new Set() },
-    other:    { name: 'Other',    revenue: 0, orders: 0, entries: 0, _oids: new Set() },
+  const allTimeOrderMap = {};
+  const allTimeByPassMap = {
+    bronze:   { name:'Bronze',   revenue:0, entries:0, orderMap:{} },
+    silver:   { name:'Silver',   revenue:0, entries:0, orderMap:{} },
+    gold:     { name:'Gold',     revenue:0, entries:0, orderMap:{} },
+    platinum: { name:'Platinum', revenue:0, entries:0, orderMap:{} },
+    other:    { name:'Other',    revenue:0, entries:0, orderMap:{} },
   };
-  (allLogs||[]).forEach(l => {
-    const pt  = (l.pass_type || 'other').toLowerCase();
-    const key = allTimeByPass[pt] ? pt : 'other';
-    allTimeByPass[key].revenue += parseFloat(l.order_amount||0);
-    allTimeByPass[key].entries += l.entries_awarded || 0;
-    if (l.order_id) allTimeByPass[key]._oids.add(l.order_id);
+  let allTimeRevenue = 0;
+
+  (allLogs || []).forEach(l => {
+    const amount  = parseFloat(l.order_amount) || 0;
+    const oid     = l.order_id ? String(l.order_id) : null;
+    const pt      = (l.pass_type || 'other').toLowerCase();
+    const entries = parseInt(l.entries_awarded) || 0;
+    allTimeRevenue += amount;
+    if (oid) allTimeOrderMap[oid] = true;
+    const pk = allTimeByPassMap[pt] ? pt : 'other';
+    allTimeByPassMap[pk].revenue += amount;
+    allTimeByPassMap[pk].entries += entries;
+    if (oid) allTimeByPassMap[pk].orderMap[oid] = true;
   });
-  Object.values(allTimeByPass).forEach(p => { p.orders = p._oids.size; delete p._oids; });
+
+  const allTimeOrders = Object.keys(allTimeOrderMap).length;
+  const allTimeByPass = Object.values(allTimeByPassMap).map(p => ({
+    name: p.name, revenue: Math.round(p.revenue*100)/100,
+    orders: Object.keys(p.orderMap).length, entries: p.entries,
+  }));
 
   return res.status(200).json({
-    period_days: period, period_revenue: Math.round(totalRevenue*100)/100,
-    period_orders: totalOrders, avg_order: totalOrders>0 ? Math.round((totalRevenue/totalOrders)*100)/100 : 0,
-    alltime_revenue: Math.round(allTimeRevenue*100)/100, alltime_orders: allTimeOrders,
-    daily, by_giveaway: Object.values(byGiveaway),
-    by_pass: Object.values(byPass),
-    alltime_by_pass: Object.values(allTimeByPass),
-    transactions: logs.slice(0,50),
+    _debug: { logs_count: logs.length, period, allTime,
+      sample_order_ids: logs.slice(0,3).map(l=>l.order_id),
+      period_order_map_keys: Object.keys(periodOrderMap).length },
+    period_days:    period,
+    period_revenue: Math.round(totalRevenue*100)/100,
+    period_orders:  totalOrders,
+    avg_order:      totalOrders > 0 ? Math.round((totalRevenue/totalOrders)*100)/100 : 0,
+    alltime_revenue: Math.round(allTimeRevenue*100)/100,
+    alltime_orders:  allTimeOrders,
+    daily,
+    by_giveaway: byGiveaway,
+    by_pass:     byPass,
+    alltime_by_pass: allTimeByPass,
+    transactions: logs.slice(0, 50),
   });
 }
 
-// List individual transactions
 async function handleTransactions(req, res) {
   const page  = parseInt(req.query.page||'1');
   const limit = 25;
@@ -424,4 +463,18 @@ async function handleExportCSV(req, res) {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="lmtls-${type}-${new Date().toISOString().slice(0,10)}.csv"`);
   return res.status(200).send(csv);
+}
+
+async function handleDebugOrders(req, res) {
+  const { data } = await supabase.from('entries_log')
+    .select('id,order_id,pass_type,order_amount,event_type,created_at')
+    .eq('event_type','purchase')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return res.status(200).json({
+    total_rows: data?.length,
+    rows: data,
+    order_ids_found: (data||[]).filter(r => r.order_id).length,
+    order_ids_null:  (data||[]).filter(r => !r.order_id).length,
+  });
 }
